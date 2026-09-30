@@ -1,0 +1,703 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found]){display:none!important}</style></head><body>
+<title>Fluxline Deployment Reference</title>
+<style>
+  :root {
+    --ink: #12182b;
+    --ink-soft: #454b60;
+    --paper: #f5f4ef;
+    --surface: #ffffff;
+    --line: #ddd9cc;
+    --line-soft: #eae7dc;
+    --accent: #1f6f78;
+    --accent-soft: #e4eeee;
+    --accent-ink: #ffffff;
+    --warm: #b5652e;
+    --warm-soft: #f4e6da;
+    --code-bg: #12182b;
+    --code-text: #e8e6dd;
+    --code-muted: #8890a8;
+    --code-key: #7fc9c4;
+    --code-val: #e3b17a;
+    --shadow: 0 1px 2px rgba(18,24,43,0.04), 0 6px 16px -8px rgba(18,24,43,0.12);
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #ece9df;
+      --ink-soft: #a9aec2;
+      --paper: #0d1120;
+      --surface: #151b2e;
+      --line: #2a3049;
+      --line-soft: #202538;
+      --accent: #4fb3ac;
+      --accent-soft: #1a3536;
+      --accent-ink: #06201f;
+      --warm: #dd9257;
+      --warm-soft: #3a2a1c;
+      --code-bg: #080b16;
+      --code-text: #e3e0d6;
+      --code-muted: #6e7690;
+      --code-key: #7fc9c4;
+      --code-val: #e3b17a;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -10px rgba(0,0,0,0.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #ece9df;
+    --ink-soft: #a9aec2;
+    --paper: #0d1120;
+    --surface: #151b2e;
+    --line: #2a3049;
+    --line-soft: #202538;
+    --accent: #4fb3ac;
+    --accent-soft: #1a3536;
+    --accent-ink: #06201f;
+    --warm: #dd9257;
+    --warm-soft: #3a2a1c;
+    --code-bg: #080b16;
+    --code-text: #e3e0d6;
+    --code-muted: #6e7690;
+    --code-key: #7fc9c4;
+    --code-val: #e3b17a;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -10px rgba(0,0,0,0.5);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 3rem 1.5rem 6rem; }
+
+  h1, h2, h3 { text-wrap: balance; font-family: "IBM Plex Sans", sans-serif; }
+  code, pre, .mono, .var, .cmd { font-family: "IBM Plex Mono", "SF Mono", monospace; }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  header.masthead { margin-bottom: 2.75rem; }
+  header.masthead h1 {
+    font-size: clamp(1.9rem, 4vw, 2.5rem);
+    font-weight: 650;
+    margin: 0.4rem 0 0.6rem;
+    letter-spacing: -0.01em;
+  }
+  header.masthead p.lede {
+    color: var(--ink-soft);
+    font-size: 1.02rem;
+    max-width: 62ch;
+    margin: 0 0 1.6rem;
+  }
+
+  nav.topo-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 1rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+  nav.topo-nav a {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+    text-decoration: none;
+    padding: 0.35rem 0.7rem;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    white-space: nowrap;
+  }
+  nav.topo-nav a:hover, nav.topo-nav a:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
+
+  section.images {
+    margin: 2.5rem 0;
+    padding: 1.1rem 1.3rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    align-items: baseline;
+  }
+  section.images .img-row { display: flex; align-items: baseline; gap: 0.6rem; }
+  section.images .label { font-size: 0.75rem; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.06em; font-family: "IBM Plex Mono", monospace; }
+  section.images code { color: var(--accent); font-weight: 600; font-size: 0.92rem; }
+
+  section.topology {
+    margin: 3.5rem 0;
+    padding-top: 2.5rem;
+    border-top: 1px solid var(--line);
+    scroll-margin-top: 1.5rem;
+  }
+  section.topology:first-of-type { border-top: none; }
+
+  .topo-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 1rem; margin-bottom: 1.1rem; }
+  .topo-head h2 { font-size: 1.4rem; font-weight: 650; margin: 0.25rem 0 0.35rem; }
+  .topo-head p { color: var(--ink-soft); margin: 0; max-width: 58ch; font-size: 0.95rem; }
+
+  .badges { display: flex; gap: 0.4rem; flex-shrink: 0; }
+  .badge {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    padding: 0.28rem 0.55rem;
+    border-radius: 5px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .badge.local { background: var(--accent-soft); color: var(--accent); }
+  .badge.remote { background: var(--warm-soft); color: var(--warm); }
+
+  .diagram {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.5rem;
+    margin: 1.2rem 0 1.5rem;
+    box-shadow: var(--shadow);
+  }
+  .diagram svg { display: block; width: 100%; height: auto; }
+  .diagram .node-label { font-family: "IBM Plex Mono", monospace; font-size: 12px; font-weight: 600; }
+  .diagram .node-sub { font-family: "IBM Plex Mono", monospace; font-size: 9.5px; }
+  .diagram .edge-label { font-family: "IBM Plex Mono", monospace; font-size: 9px; }
+
+  h3.cmd-label {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin: 1.5rem 0 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  h3.cmd-label::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+  pre.cmd {
+    background: var(--code-bg);
+    color: var(--code-text);
+    border-radius: var(--radius);
+    padding: 1.1rem 1.3rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    line-height: 1.65;
+    margin: 0;
+    box-shadow: var(--shadow);
+  }
+  pre.cmd .flag { color: var(--code-muted); }
+  pre.cmd .key { color: var(--code-key); }
+  pre.cmd .val { color: var(--code-val); }
+  pre.cmd .comment { color: var(--code-muted); font-style: italic; }
+
+  details.expand { margin-top: 0.9rem; }
+  details.expand > summary {
+    cursor: pointer;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.78rem;
+    color: var(--accent);
+    font-weight: 600;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.15rem 0;
+  }
+  details.expand > summary::-webkit-details-marker { display: none; }
+  details.expand > summary::before { content: "▸"; font-size: 0.7rem; transition: transform 0.15s ease; }
+  details.expand[open] > summary::before { transform: rotate(90deg); }
+  details.expand > summary:hover { text-decoration: underline; }
+  details.expand .cmd-inner { margin-top: 0.7rem; }
+
+  table.vars {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1.4rem;
+    font-size: 0.86rem;
+  }
+  table.vars caption {
+    text-align: left;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 0.5rem;
+  }
+  table.vars th {
+    text-align: left;
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    font-weight: 600;
+    padding: 0.5rem 0.8rem 0.5rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+  table.vars td {
+    padding: 0.6rem 0.8rem 0.6rem 0;
+    border-bottom: 1px solid var(--line-soft);
+    vertical-align: top;
+  }
+  table.vars tr:last-child td { border-bottom: none; }
+  table.vars td.name { font-family: "IBM Plex Mono", monospace; font-size: 0.82rem; color: var(--accent); white-space: nowrap; font-weight: 600; }
+  table.vars td.req { white-space: nowrap; }
+  table.vars td.desc { color: var(--ink-soft); }
+  .req-yes { color: var(--warm); font-weight: 600; font-size: 0.78rem; }
+  .req-no { color: var(--ink-soft); font-size: 0.78rem; }
+
+  .overflow-x { overflow-x: auto; }
+
+  section.reference { margin-top: 4rem; padding-top: 2.5rem; border-top: 1px solid var(--line); }
+  section.reference h2 { font-size: 1.4rem; font-weight: 650; margin: 0.25rem 0 0.4rem; }
+  section.reference > p { color: var(--ink-soft); max-width: 62ch; margin: 0 0 1.8rem; font-size: 0.95rem; }
+  .ref-group { margin-bottom: 2.2rem; }
+  .ref-group h4 {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--warm);
+    margin: 0 0 0.6rem;
+  }
+
+  footer {
+    margin-top: 4rem;
+    padding-top: 1.6rem;
+    border-top: 1px solid var(--line);
+    color: var(--ink-soft);
+    font-size: 0.83rem;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  footer code { color: var(--accent); }
+
+  @media (max-width: 640px) {
+    .topo-head { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;650;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<div class="wrap">
+
+  <header class="masthead">
+    <span class="eyebrow">Fluxline · Deployment Reference</span>
+    <h1>Running the UI and Agent with Docker</h1>
+    <p class="lede">Four real topologies — what to run, what to mount, and every environment variable each one actually reads. Minimal commands to get moving, detailed ones with every variable spelled out.</p>
+    <nav class="topo-nav" aria-label="Jump to a topology">
+      <a href="#all-local">① All local</a>
+      <a href="#remote-db">② Local UI + Agent, remote DB</a>
+      <a href="#remote-ui">③ Remote UI, local Agent</a>
+      <a href="#agent-only">④ Agent only, headless</a>
+      <a href="#reference">Full variable index</a>
+    </nav>
+  </header>
+
+  <section class="images">
+    <div class="img-row"><span class="label">UI image</span><code>suneshantanu/fluxline-ui:arm64</code></div>
+    <div class="img-row"><span class="label">Agent image</span><code>suneshantanu/fluxline-agent:arm64</code></div>
+    <div class="img-row"><span class="label">Ports</span><code>ui:3000</code> <code>agent:3400</code> <code>postgres:5432</code></div>
+  </section>
+
+  <!-- ① ALL LOCAL -->
+  <section class="topology" id="all-local">
+    <div class="topo-head">
+      <div>
+        <span class="eyebrow">Topology 01</span>
+        <h2>Local UI + Local Agent + Local DB</h2>
+        <p>Everything on one machine, three containers on one Docker network. The default starting point — nothing to reach over the internet.</p>
+      </div>
+      <div class="badges"><span class="badge local">3 containers</span><span class="badge local">local only</span></div>
+    </div>
+
+    <div class="diagram">
+      <svg viewBox="0 0 760 130" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="UI, Agent, and Postgres all running as local containers on one Docker network">
+        <defs>
+          <marker id="arrow1" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L8,4 L0,8 z" fill="var(--ink-soft)"></path>
+          </marker>
+        </defs>
+        <rect x="8" y="8" width="744" height="114" rx="10" fill="none" stroke="var(--line)" stroke-dasharray="3 3"></rect>
+        <text x="20" y="26" class="node-sub" fill="var(--ink-soft)">docker network: fluxline-net</text>
+
+        <rect x="36" y="44" width="150" height="60" rx="8" fill="var(--accent-soft)" stroke="var(--accent)"></rect>
+        <text x="111" y="70" text-anchor="middle" class="node-label" fill="var(--accent)">fluxline-ui</text>
+        <text x="111" y="86" text-anchor="middle" class="node-sub" fill="var(--ink-soft)">:3000</text>
+
+        <rect x="305" y="44" width="150" height="60" rx="8" fill="var(--accent-soft)" stroke="var(--accent)"></rect>
+        <text x="380" y="70" text-anchor="middle" class="node-label" fill="var(--accent)">fluxline-agent</text>
+        <text x="380" y="86" text-anchor="middle" class="node-sub" fill="var(--ink-soft)">:3400 · /data</text>
+
+        <rect x="574" y="44" width="150" height="60" rx="8" fill="var(--surface)" stroke="var(--line)"></rect>
+        <text x="649" y="70" text-anchor="middle" class="node-label" fill="var(--ink)">postgres:17</text>
+        <text x="649" y="86" text-anchor="middle" class="node-sub" fill="var(--ink-soft)">:5432</text>
+
+        <line x1="186" y1="74" x2="303" y2="74" stroke="var(--ink-soft)" stroke-width="1.4" marker-end="url(#arrow1)"></line>
+        <line x1="455" y1="74" x2="572" y2="74" stroke="var(--ink-soft)" stroke-width="1.4" marker-end="url(#arrow1)"></line>
+      </svg>
+    </div>
+
+    <h3 class="cmd-label">Minimal</h3>
+    <pre class="cmd"><span class="flag">docker network create fluxline-net</span>
+
+<span class="flag">docker run -d --name fluxline-db --network fluxline-net \
+  -e </span><span class="key">POSTGRES_PASSWORD</span><span class="flag">=</span><span class="val">changeme</span><span class="flag"> \
+  -v fluxline-db-data:/var/lib/postgresql/data \
+  postgres:17-alpine
+
+docker run -d --name fluxline-agent --network fluxline-net -p 3400:3400 \
+  -v fluxline-agent-data:/data \
+  -v /var/run/docker.sock:/var/run/docker.sock </span><span class="comment"># build &amp; test in toolchain containers</span><span class="flag"> \
+  -v ~/.ai-sdlc:/vscode-bridge-registry:ro </span><span class="comment"># vscode provider only</span><span class="flag"> \
+  -e </span><span class="key">AI_SDLC_DATABASE_URL</span><span class="flag">=</span><span class="val">postgres://postgres:changeme@fluxline-db:5432/postgres</span><span class="flag"> \
+  suneshantanu/fluxline-agent:arm64
+
+docker run -d --name fluxline-ui --network fluxline-net -p 3000:3000 \
+  -e </span><span class="key">DATABASE_URL</span><span class="flag">=</span><span class="val">postgres://postgres:changeme@fluxline-db:5432/postgres</span><span class="flag"> \
+  suneshantanu/fluxline-ui:arm64</span></pre>
+
+    <details class="expand">
+      <summary>Detailed — every variable either container reads</summary>
+      <div class="cmd-inner">
+        <pre class="cmd"><span class="flag">docker run -d --name fluxline-agent --network fluxline-net -p 3400:3400 \
+  -v fluxline-agent-data:/data \
+  -v /var/run/docker.sock:/var/run/docker.sock </span><span class="comment"># build &amp; test in toolchain containers</span><span class="flag"> \
+  -v ~/.ai-sdlc:/vscode-bridge-registry:ro \
+  -v ~/.claude:/root/.claude:ro </span><span class="comment"># claude CLI login, if using that provider</span><span class="flag"> \
+  -e </span><span class="key">AI_SDLC_DATABASE_URL</span><span class="flag">=</span><span class="val">postgres://postgres:changeme@fluxline-db:5432/postgres</span><span class="flag"> \
+  -e </span><span class="key">AI_SDLC_CHECKPOINTER</span><span class="flag">=</span><span class="val">postgres</span><span class="flag"> \
+  -e </span><span class="key">AI_SDLC_ALLOWED_ORIGINS</span><span class="flag">=</span><span class="val">http://localhost:3000</span><span class="flag"> \
+  -e </span><span class="key">AI_SDLC_API_TOKEN</span><span class="flag">=</span><span class="val">choose-a-fixed-token</span><span class="flag"> \
+  -e </span><span class="key">ANTHROPIC_API_KEY</span><span class="flag">=</span><span class="val">sk-ant-...</span><span class="flag"> \
+  -e </span><span class="key">OPENAI_API_KEY</span><span class="flag">=</span><span class="val">sk-...</span><span class="flag"> \
+  -e </span><span class="key">AI_SDLC_GITHUB_ENABLED</span><span class="flag">=</span><span class="val">true</span><span class="flag"> \
+  -e </span><span class="key">AI_SDLC_GITHUB_TOKEN</span><span class="flag">=</span><span class="val">ghp_...</span><span class="flag"> \
+  suneshantanu/fluxline-agent:arm64
+
+docker run -d --name fluxline-ui --network fluxline-net -p 3000:3000 \
+  -e </span><span class="key">DATABASE_URL</span><span class="flag">=</span><span class="val">postgres://postgres:changeme@fluxline-db:5432/postgres</span><span class="flag"> \
+  -e </span><span class="key">DB_POOL_MAX</span><span class="flag">=</span><span class="val">20</span><span class="flag"> \
+  -e </span><span class="key">DB_POOL_IDLE_TIMEOUT_MS</span><span class="flag">=</span><span class="val">30000</span><span class="flag"> \
+  suneshantanu/fluxline-ui:arm64</span></pre>
+      </div>
+    </details>
+
+    <div class="overflow-x">
+    <table class="vars">
+      <caption>fluxline-agent</caption>
+      <thead><tr><th>Variable</th><th>Required</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td class="name">AI_SDLC_DATABASE_URL</td><td class="req"><span class="req-yes">yes*</span></td><td class="desc">Postgres URL for run state. *Omit to fall back to in-memory (fine for trying things out — state is lost on restart).</td></tr>
+        <tr><td class="name">AI_SDLC_CHECKPOINTER</td><td class="req"><span class="req-no">no</span></td><td class="desc">memory | postgres | remote — auto-picked from which URL/token vars are set; set explicitly to be sure.</td></tr>
+        <tr><td class="name">AI_SDLC_API_TOKEN</td><td class="req"><span class="req-no">no</span></td><td class="desc">Pin the agent's own inbound auth token. Unset: one is generated on first boot and saved into /data.</td></tr>
+        <tr><td class="name">AI_SDLC_ALLOWED_ORIGINS</td><td class="req"><span class="req-no">no</span></td><td class="desc">Comma-separated browser origins allowed to call this agent. Default covers localhost only.</td></tr>
+        <tr><td class="name">ANTHROPIC_API_KEY / OPENAI_API_KEY / GH_COPILOT_TOKEN</td><td class="req"><span class="req-no">no</span></td><td class="desc">Only for whichever code-gen provider(s) you enable in agents.yaml.</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="overflow-x">
+    <table class="vars">
+      <caption>fluxline-ui</caption>
+      <thead><tr><th>Variable</th><th>Required</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td class="name">DATABASE_URL</td><td class="req"><span class="req-yes">yes</span></td><td class="desc">Same Postgres the agent uses — or DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME as discrete parts instead.</td></tr>
+        <tr><td class="name">DB_POOL_MAX</td><td class="req"><span class="req-no">no</span></td><td class="desc">Max concurrent connections this UI instance opens. Default 10 per Node default.</td></tr>
+        <tr><td class="name">DB_POOL_IDLE_TIMEOUT_MS</td><td class="req"><span class="req-no">no</span></td><td class="desc">How long an idle pooled connection stays open before recycling. Default 30000.</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p style="color:var(--ink-soft); font-size:0.86rem; margin-top:1rem;">First visit to <code>:3000</code> creates the admin account — no separate bootstrap step or password variable.</p>
+  </section>
+
+  <!-- ② REMOTE DB -->
+  <section class="topology" id="remote-db">
+    <div class="topo-head">
+      <div>
+        <span class="eyebrow">Topology 02</span>
+        <h2>Local UI + Local Agent, Remote DB</h2>
+        <p>Both containers stay on your machine; only Postgres is elsewhere — a managed instance (RDS, Supabase, Neon...). No local <code>fluxline-db</code> container at all.</p>
+      </div>
+      <div class="badges"><span class="badge local">2 containers</span><span class="badge remote">managed DB</span></div>
+    </div>
+
+    <div class="diagram">
+      <svg viewBox="0 0 760 150" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="UI and Agent run locally; both connect out to a managed Postgres database elsewhere">
+        <defs>
+          <marker id="arrow2" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L8,4 L0,8 z" fill="var(--ink-soft)"></path>
+          </marker>
+        </defs>
+        <rect x="8" y="8" width="470" height="80" rx="10" fill="none" stroke="var(--line)" stroke-dasharray="3 3"></rect>
+        <text x="20" y="26" class="node-sub" fill="var(--ink-soft)">this machine</text>
+
+        <rect x="36" y="40" width="150" height="52" rx="8" fill="var(--accent-soft)" stroke="var(--accent)"></rect>
+        <text x="111" y="62" text-anchor="middle" class="node-label" fill="var(--accent)">fluxline-ui</text>
+        <text x="111" y="78" text-anchor="middle" class="node-sub" fill="var(--ink-soft)">:3000</text>
+
+        <rect x="305" y="40" width="150" height="52" rx="8" fill="var(--accent-soft)" stroke="var(--accent)"></rect>
+        <text x="380" y="62" text-anchor="middle" class="node-label" fill="var(--accent)">fluxline-agent</text>
+        <text x="380" y="78" text-anchor="middle" class="node-sub" fill="var(--ink-soft)">:3400</text>
+
+        <rect x="574" y="60" width="150" height="60" rx="8" fill="var(--warm-soft)" stroke="var(--warm)"></rect>
+        <text x="649" y="86" text-anchor="middle" class="node-label" fill="var(--warm)">managed postgres</text>
+        <text x="649" y="102" text-anchor="middle" class="node-sub" fill="var(--ink-soft)">RDS / Supabase / Neon</text>
+
+        <line x1="111" y1="92" x2="111" y2="110" stroke="var(--ink-soft)" stroke-width="1.4"></line>
+        <line x1="111" y1="110" x2="620" y2="110" stroke="var(--ink-soft)" stroke-width="1.4"></line>
+        <line x1="620" y1="110" x2="649" y2="92" stroke="var(--ink-soft)" stroke-width="1.4" marker-end="url(#arrow2)"></line>
+        <line x1="455" y1="66" x2="572" y2="76" stroke="var(--ink-soft)" stroke-width="1.4" marker-end="url(#arrow2)"></line>
+        <text x="500" y="60" class="edge-label" fill="var(--ink-soft)">TLS</text>
+      </svg>
+    </div>
+
+    <h3 class="cmd-label">Minimal</h3>
+    <pre class="cmd"><span class="flag">docker run -d --name fluxline-agent -p 3400:3400 \
+  -v fluxline-agent-data:/data \
+  -v /var/run/docker.sock:/var/run/docker.sock </span><span class="comment"># build &amp; test in toolchain containers</span><span class="flag"> \
+  -e </span><span class="key">AI_SDLC_DATABASE_URL</span><span class="flag">=</span><span class="val">postgres://USER:PASS@your-db-host.rds.amazonaws.com:5432/fluxline?sslmode=require</span><span class="flag"> \
+  suneshantanu/fluxline-agent:arm64
+
+docker run -d --name fluxline-ui -p 3000:3000 \
+  -e </span><span class="key">DATABASE_URL</span><span class="flag">=</span><span class="val">postgres://USER:PASS@your-db-host.rds.amazonaws.com:5432/fluxline?sslmode=require</span><span class="flag"> \
+  suneshantanu/fluxline-ui:arm64</span></pre>
+
+    <details class="expand">
+      <summary>Detailed — discrete DB parts instead of one URL, plus pool tuning</summary>
+      <div class="cmd-inner">
+        <pre class="cmd"><span class="flag">docker run -d --name fluxline-agent -p 3400:3400 \
+  -v fluxline-agent-data:/data \
+  -v /var/run/docker.sock:/var/run/docker.sock </span><span class="comment"># build &amp; test in toolchain containers</span><span class="flag"> \
+  -e </span><span class="key">AI_SDLC_DATABASE_URL</span><span class="flag">=</span><span class="val">postgres://USER:PASS@your-db-host:5432/fluxline?sslmode=require</span><span class="flag"> \
+  -e </span><span class="key">AI_SDLC_CHECKPOINTER</span><span class="flag">=</span><span class="val">postgres</span><span class="flag"> \
+  suneshantanu/fluxline-agent:arm64
+
+docker run -d --name fluxline-ui -p 3000:3000 \
+  -e </span><span class="key">DB_HOST</span><span class="flag">=</span><span class="val">your-db-host.rds.amazonaws.com</span><span class="flag"> \
+  -e </span><span class="key">DB_PORT</span><span class="flag">=</span><span class="val">5432</span><span class="flag"> \
+  -e </span><span class="key">DB_USER</span><span class="flag">=</span><span class="val">fluxline</span><span class="flag"> \
+  -e </span><span class="key">DB_PASSWORD</span><span class="flag">=</span><span class="val">PASS</span><span class="flag"> \
+  -e </span><span class="key">DB_NAME</span><span class="flag">=</span><span class="val">fluxline</span><span class="flag"> \
+  -e </span><span class="key">DB_POOL_MAX</span><span class="flag">=</span><span class="val">20</span><span class="flag"> \
+  suneshantanu/fluxline-ui:arm64</span></pre>
+      </div>
+    </details>
+
+    <p style="color:var(--ink-soft); font-size:0.86rem; margin-top:1.2rem;">Same variable tables as topology 01 — only the connection target changes. <code>DATABASE_URL</code> always wins over the discrete <code>DB_*</code> parts if both are set.</p>
+  </section>
+
+  <!-- ③ REMOTE UI -->
+  <section class="topology" id="remote-ui">
+    <div class="topo-head">
+      <div>
+        <span class="eyebrow">Topology 03</span>
+        <h2>Remote UI, Local Agent</h2>
+        <p>The UI is already hosted somewhere (ECS, a VPS, the shared team deployment) with its own database. The agent runs on your own machine and links to it with a personal access token — no local Postgres to run at all.</p>
+      </div>
+      <div class="badges"><span class="badge local">1 container</span><span class="badge remote">hosted UI</span></div>
+    </div>
+
+    <div class="diagram">
+      <svg viewBox="0 0 760 150" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Agent runs locally and links to a UI hosted elsewhere over a personal access token">
+        <defs>
+          <marker id="arrow3" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L8,4 L0,8 z" fill="var(--ink-soft)"></path>
+          </marker>
+        </defs>
+        <rect x="8" y="8" width="200" height="80" rx="10" fill="none" stroke="var(--line)" stroke-dasharray="3 3"></rect>
+        <text x="20" y="26" class="node-sub" fill="var(--ink-soft)">this machine</text>
+        <rect x="36" y="40" width="150" height="52" rx="8" fill="var(--accent-soft)" stroke="var(--accent)"></rect>
+        <text x="111" y="62" text-anchor="middle" class="node-label" fill="var(--accent)">fluxline-agent</text>
+        <text x="111" y="78" text-anchor="middle" class="node-sub" fill="var(--ink-soft)">:3400</text>
+
+        <line x1="218" y1="66" x2="440" y2="66" stroke="var(--ink-soft)" stroke-width="1.4" marker-end="url(#arrow3)"></line>
+        <text x="245" y="56" class="edge-label" fill="var(--ink-soft)">AI_SDLC_AGENT_TOKEN</text>
+
+        <rect x="450" y="30" width="290" height="90" rx="10" fill="none" stroke="var(--line)" stroke-dasharray="3 3"></rect>
+        <text x="462" y="48" class="node-sub" fill="var(--ink-soft)">hosted elsewhere</text>
+        <rect x="470" y="58" width="120" height="50" rx="8" fill="var(--warm-soft)" stroke="var(--warm)"></rect>
+        <text x="530" y="79" text-anchor="middle" class="node-label" fill="var(--warm)">fluxline-ui</text>
+        <text x="530" y="94" text-anchor="middle" class="node-sub" fill="var(--ink-soft)">app.yourco.com</text>
+        <rect x="606" y="58" width="120" height="50" rx="8" fill="var(--surface)" stroke="var(--line)"></rect>
+        <text x="666" y="79" text-anchor="middle" class="node-label" fill="var(--ink)">its own DB</text>
+        <line x1="592" y1="83" x2="604" y2="83" stroke="var(--ink-soft)" stroke-width="1.2"></line>
+      </svg>
+    </div>
+
+    <h3 class="cmd-label">Minimal</h3>
+    <pre class="cmd"><span class="comment"># get a token: hosted UI → Settings → Agent tokens → New token</span>
+<span class="flag">docker run -d --name fluxline-agent -p 3400:3400 \
+  -v fluxline-agent-data:/data \
+  -v /var/run/docker.sock:/var/run/docker.sock </span><span class="comment"># build &amp; test in toolchain containers</span><span class="flag"> \
+  -e </span><span class="key">AI_SDLC_REMOTE_UI_URL</span><span class="flag">=</span><span class="val">https://app.yourco.com</span><span class="flag"> \
+  -e </span><span class="key">AI_SDLC_AGENT_TOKEN</span><span class="flag">=</span><span class="val">fxln_pat_...</span><span class="flag"> \
+  suneshantanu/fluxline-agent:arm64</span></pre>
+
+    <details class="expand">
+      <summary>Detailed — pin the checkpointer explicitly, add a code-gen provider</summary>
+      <div class="cmd-inner">
+        <pre class="cmd"><span class="flag">docker run -d --name fluxline-agent -p 3400:3400 \
+  -v fluxline-agent-data:/data \
+  -v /var/run/docker.sock:/var/run/docker.sock </span><span class="comment"># build &amp; test in toolchain containers</span><span class="flag"> \
+  -v ~/.ai-sdlc:/vscode-bridge-registry:ro \
+  -e </span><span class="key">AI_SDLC_REMOTE_UI_URL</span><span class="flag">=</span><span class="val">https://app.yourco.com</span><span class="flag"> \
+  -e </span><span class="key">AI_SDLC_AGENT_TOKEN</span><span class="flag">=</span><span class="val">fxln_pat_...</span><span class="flag"> \
+  -e </span><span class="key">AI_SDLC_CHECKPOINTER</span><span class="flag">=</span><span class="val">remote</span><span class="flag"> </span><span class="comment"># implied by the two vars above, set here for clarity</span><span class="flag"> \
+  -e </span><span class="key">ANTHROPIC_API_KEY</span><span class="flag">=</span><span class="val">sk-ant-...</span><span class="flag"> \
+  suneshantanu/fluxline-agent:arm64</span></pre>
+      </div>
+    </details>
+
+    <div class="overflow-x">
+    <table class="vars">
+      <caption>fluxline-agent — this topology only</caption>
+      <thead><tr><th>Variable</th><th>Required</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td class="name">AI_SDLC_REMOTE_UI_URL</td><td class="req"><span class="req-yes">yes</span></td><td class="desc">Base URL of the hosted UI this agent reports run history and workspace config to.</td></tr>
+        <tr><td class="name">AI_SDLC_AGENT_TOKEN</td><td class="req"><span class="req-yes">yes</span></td><td class="desc">Personal access token from that UI's Agent tokens screen. Pairs with the URL above — the run history you see is tied to this exact token.</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <!-- ④ AGENT ONLY -->
+  <section class="topology" id="agent-only">
+    <div class="topo-head">
+      <div>
+        <span class="eyebrow">Topology 04</span>
+        <h2>Agent Only, Headless</h2>
+        <p>No UI container at all — talk to the agent's own HTTP API directly (scripting, CI, a thin custom frontend). In-memory run state by default.</p>
+      </div>
+      <div class="badges"><span class="badge local">1 container</span></div>
+    </div>
+
+    <h3 class="cmd-label">Minimal</h3>
+    <pre class="cmd"><span class="flag">docker run -d --name fluxline-agent -p 3400:3400 \
+  -v fluxline-agent-data:/data \
+  -v /var/run/docker.sock:/var/run/docker.sock </span><span class="comment"># build &amp; test in toolchain containers</span><span class="flag"> \
+  suneshantanu/fluxline-agent:arm64
+
+</span><span class="comment"># the token is printed to logs on first boot if you don't set one:</span>
+<span class="flag">docker logs fluxline-agent | grep Bearer</span></pre>
+
+    <details class="expand">
+      <summary>Detailed — pin the token, add persistent Postgres state anyway</summary>
+      <div class="cmd-inner">
+        <pre class="cmd"><span class="flag">docker run -d --name fluxline-agent -p 3400:3400 \
+  -v fluxline-agent-data:/data \
+  -v /var/run/docker.sock:/var/run/docker.sock </span><span class="comment"># build &amp; test in toolchain containers</span><span class="flag"> \
+  -e </span><span class="key">AI_SDLC_API_TOKEN</span><span class="flag">=</span><span class="val">choose-a-fixed-token</span><span class="flag"> \
+  -e </span><span class="key">AI_SDLC_DATABASE_URL</span><span class="flag">=</span><span class="val">postgres://USER:PASS@your-db-host:5432/fluxline</span><span class="flag"> \
+  -e </span><span class="key">AI_SDLC_CHECKPOINTER</span><span class="flag">=</span><span class="val">postgres</span><span class="flag"> \
+  suneshantanu/fluxline-agent:arm64
+
+curl -H "Authorization: Bearer </span><span class="val">choose-a-fixed-token</span><span class="flag">" http://localhost:3400/runtime</span></pre>
+      </div>
+    </details>
+  </section>
+
+  <!-- FULL REFERENCE -->
+  <section class="reference" id="reference">
+    <span class="eyebrow">Appendix</span>
+    <h2>Full variable index</h2>
+    <p>Every variable either image reads, grouped by what it configures — for anything not covered by the four topologies above.</p>
+
+    <div class="ref-group">
+      <h4>Core &amp; networking — agent</h4>
+      <div class="overflow-x">
+      <table class="vars">
+        <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td class="name">AI_SDLC_HOST</td><td class="mono">0.0.0.0</td><td class="desc">Already set inside the image — only override for unusual networking.</td></tr>
+          <tr><td class="name">AI_SDLC_PORT</td><td class="mono">3400</td><td class="desc">Already set inside the image.</td></tr>
+          <tr><td class="name">AI_SDLC_ALLOWED_ORIGINS</td><td class="mono">localhost only</td><td class="desc">Comma-separated browser origins allowed to call this agent's API.</td></tr>
+          <tr><td class="name">AI_SDLC_CHECKPOINTER</td><td class="mono">auto-detected</td><td class="desc">memory | postgres | remote — inferred from which DB/remote vars are set.</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    <div class="ref-group">
+      <h4>Data &amp; paths — agent</h4>
+      <div class="overflow-x">
+      <table class="vars">
+        <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td class="name">AI_SDLC_DATA_DIR</td><td class="mono">/data</td><td class="desc">Persistent config + secrets root. Always mount a volume here.</td></tr>
+          <tr><td class="name">AI_SDLC_AGENTS_CONFIG</td><td class="mono">/data/agents.yaml</td><td class="desc">Provider config — override only for a non-standard layout.</td></tr>
+          <tr><td class="name">AI_SDLC_WORKSPACE_CONFIG</td><td class="mono">/data/workspace.yaml</td><td class="desc">Active workspace definition.</td></tr>
+          <tr><td class="name">AI_SDLC_PIPELINE_CONFIG</td><td class="mono">/data/pipeline.yaml</td><td class="desc">Pipeline/checks configuration.</td></tr>
+          <tr><td class="name">AI_SDLC_CONTAINER_ID</td><td class="mono">auto-detected</td><td class="desc">This agent container's name/id, used to give build/test containers the same mounts (<code>--volumes-from</code>). Set only if detection fails.</td></tr>
+          <tr><td class="name">-v /var/run/docker.sock:/var/run/docker.sock</td><td class="mono">—</td><td class="desc">Lets verification checks and dependency builds run in toolchain containers (Maven/Gradle/Node/Go/Python/Rust image picked from each repository's manifest, <code>./mvnw</code> replaced by the image's <code>mvn</code>, caches in <code>fluxline-toolchain-*</code> volumes; <code>~/.m2/settings.xml</code>, <code>~/.npmrc</code>, <code>pip.conf</code> and <code>gradle.properties</code> from the agent's home are copied in). Without it, checks run in the agent's own shell. Control with <code>check_runtime: auto | container | host</code> in pipeline.yaml. Repositories and the run directory must be on a mounted volume.</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    <div class="ref-group">
+      <h4>SCM &amp; issue tracker tokens — agent</h4>
+      <div class="overflow-x">
+      <table class="vars">
+        <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td class="name">AI_SDLC_GITHUB_ENABLED / AI_SDLC_GITHUB_TOKEN</td><td class="mono">false</td><td class="desc">Only needed if pipeline.scm_provider targets GitHub.</td></tr>
+          <tr><td class="name">AI_SDLC_GITLAB_ENABLED / AI_SDLC_GITLAB_TOKEN</td><td class="mono">false</td><td class="desc">Same, for GitLab.</td></tr>
+          <tr><td class="name">AI_SDLC_JIRA_ENABLED / AI_SDLC_JIRA_API_URL / AI_SDLC_JIRA_EMAIL / AI_SDLC_JIRA_TOKEN</td><td class="mono">false</td><td class="desc">Convert Jira tickets into runs from the UI's Jira panel.</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    <div class="ref-group">
+      <h4>Code-gen provider credentials — agent</h4>
+      <div class="overflow-x">
+      <table class="vars">
+        <thead><tr><th>Variable</th><th>Provider</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td class="name">ANTHROPIC_API_KEY</td><td class="mono">claude</td><td class="desc">Or mount <code>~/.claude</code> to reuse an existing CLI login instead.</td></tr>
+          <tr><td class="name">OPENAI_API_KEY</td><td class="mono">codex</td><td class="desc">Or mount <code>~/.codex</code>.</td></tr>
+          <tr><td class="name">GH_COPILOT_TOKEN</td><td class="mono">copilot</td><td class="desc">Hosted Copilot coding-agent dispatcher.</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p style="color:var(--ink-soft); font-size:0.85rem; margin-top:0.6rem;"><code>vscode</code> needs none of these — it drives Copilot Chat inside a real VS Code window instead. See the Agents settings screen for connection_mode (native / socket / relay).</p>
+    </div>
+
+    <div class="ref-group">
+      <h4>Database &amp; auth — UI</h4>
+      <div class="overflow-x">
+      <table class="vars">
+        <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td class="name">DATABASE_URL</td><td class="mono">—</td><td class="desc">Wins over the discrete DB_* vars below when both are set.</td></tr>
+          <tr><td class="name">DB_HOST / DB_PORT / DB_USER / DB_PASSWORD / DB_NAME</td><td class="mono">port 5432</td><td class="desc">Used only when DATABASE_URL is unset.</td></tr>
+          <tr><td class="name">DB_POOL_MAX</td><td class="mono">10</td><td class="desc">Concurrent connections this UI instance opens.</td></tr>
+          <tr><td class="name">DB_POOL_IDLE_TIMEOUT_MS</td><td class="mono">30000</td><td class="desc">How long an idle pooled connection stays open.</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p style="color:var(--ink-soft); font-size:0.85rem; margin-top:0.6rem;">No admin-password variable — the first browser visit to the UI creates the one admin account, one time only.</p>
+    </div>
+  </section>
+
+  <footer>
+    <span>Images are published per architecture: <code>:arm64</code> and <code>:amd64</code>.</span>
+  </footer>
+
+</div>
+
+</body></html>
