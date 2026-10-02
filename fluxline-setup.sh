@@ -179,12 +179,13 @@ load_state() {
   done <"${STATE_FILE}"
 }
 
-# HTTP status of a URL, or 000 when nothing answers.
-http_code() { curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$1" 2>/dev/null || true; }
+# HTTP status of a URL on this machine, or 000 when nothing answers. --noproxy: a proxy set in
+# the terminal can't reach this machine's 127.0.0.1, and curl would otherwise send it there.
+http_code() { curl -s --noproxy '*' -o /dev/null -w '%{http_code}' --max-time 5 "$1" 2>/dev/null || true; }
 # The agent requires a token, so 401 still means it's up.
 agent_up() { case "$(http_code "http://127.0.0.1:${AGENT_PORT}/runtime")" in 200 | 401) return 0 ;; *) return 1 ;; esac; }
 # First boot creates the admin account; the UI is ready once it no longer asks for one.
-ui_ready() { curl -sf --max-time 5 "http://127.0.0.1:${UI_PORT}/api/auth/bootstrap" | grep -q '"needsBootstrap":false'; }
+ui_ready() { curl -sf --noproxy '*' --max-time 5 "http://127.0.0.1:${UI_PORT}/api/auth/bootstrap" | grep -q '"needsBootstrap":false'; }
 stack_ready() { ui_ready && agent_up; }
 
 # --- engine versions ---------------------------------------------------------------------------
@@ -621,7 +622,9 @@ install_vscode_bridge() {
     return 0
   fi
   dir="$(mktemp -d)"
-  if ! curl -sfL -o "${dir}/ai-sdlc-vscode-bridge.vsix" "${vsix_url}"; then
+  local noproxy=()
+  case "${ui_base}" in http://127.0.0.1:* | http://localhost:*) noproxy=(--noproxy '*') ;; esac
+  if ! curl -sfL ${noproxy[@]+"${noproxy[@]}"} -o "${dir}/ai-sdlc-vscode-bridge.vsix" "${vsix_url}"; then
     warn "Couldn't download ${vsix_url}; install the extension from there later."
     rm -rf "${dir}"
     return 0
