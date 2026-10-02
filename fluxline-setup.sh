@@ -647,9 +647,15 @@ action_up() {
   if [ "${FLUXLINE_PULL:-1}" = 0 ] && rt image inspect "${image}" >/dev/null 2>&1; then
     echo "  ${image} (local)"
   else
-    echo "  ${image}"
-    rt pull -q "${image}" >/dev/null ||
-      die "Couldn't pull ${image}. To pull from a mirror, set FLUXLINE_REGISTRY and re-run."
+    echo "  ${image} (about 1.3 GB the first time; updates download only what changed)"
+    # In a terminal, show the engine's own per-layer progress bars; in a log, stay quiet.
+    if [ -t 1 ]; then
+      rt pull "${image}" ||
+        die "Couldn't pull ${image}. To pull from a mirror, set FLUXLINE_REGISTRY and re-run."
+    else
+      rt pull -q "${image}" >/dev/null ||
+        die "Couldn't pull ${image}. To pull from a mirror, set FLUXLINE_REGISTRY and re-run."
+    fi
   fi
   ok "Image ready"
 
