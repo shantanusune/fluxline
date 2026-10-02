@@ -84,10 +84,10 @@ rm ~/.fluxline/setup.env
 | Agent | What you need |
 | --- | --- |
 | **VS Code** (Copilot Chat) | VS Code with GitHub Copilot Chat signed in. The script installs the bridge extension; keep a VS Code window open. |
-| **Claude** | An Anthropic API key, entered when the script asks. On macOS the Claude CLI keeps its login in the Keychain, which containers can't read, so a key is needed. |
-| **Codex** | `OPENAI_API_KEY` set before running the script, or an existing `codex login` (`~/.codex`), picked up automatically. |
+| **Claude** | An Anthropic API key, entered when the script asks or later under **Configuration → Agents**. On macOS the Claude CLI keeps its login in the Keychain, which containers can't read, so a key is needed. |
+| **Codex** | `OPENAI_API_KEY` set before running the script, an API key added under **Configuration → Agents**, or an existing `codex login` (`~/.codex`), picked up automatically. |
 
-Providers you give credentials for are switched on automatically.
+Providers you give credentials for are switched on automatically. Keys saved in the app are kept on the agent's data volume, so they survive updates.
 
 ## Options
 
@@ -150,3 +150,7 @@ The script picks the tag for your machine.
 ## License
 
 MIT, see [LICENSE](LICENSE).
+
+---
+
+© 2026 Shantanu Sune · For developers, by developers

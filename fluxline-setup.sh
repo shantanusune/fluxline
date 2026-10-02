@@ -472,7 +472,8 @@ install_vscode_bridge() {
 }
 
 action_up() {
-  printf '%sFluxline setup (%s)%s\n' "${BOLD}" "${RUNTIME}" "${RESET}"
+  printf '%sFluxline setup (%s)%s\n%s© 2026 Shantanu Sune · For developers, by developers%s\n' \
+    "${BOLD}" "${RUNTIME}" "${RESET}" "${DIM}" "${RESET}"
   command -v curl >/dev/null 2>&1 || die "curl is required."
 
   step "Checking ${RUNTIME}"
