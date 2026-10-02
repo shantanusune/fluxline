@@ -1,32 +1,32 @@
 #!/usr/bin/env bash
-# Fluxline setup wizard: starts the whole stack (Postgres + agent + UI) from the published images on
-# Docker or Podman. Asks two things: your code folder and, optionally, an Anthropic API key.
-# Everything else is generated or detected. Nothing needs sudo; rootless Podman works.
+# Fluxline setup wizard: starts Fluxline (UI, agent and its Postgres, all in the one
+# fluxline-standalone image) on Docker or Podman. Asks two things: your code folder and,
+# optionally, an Anthropic API key. Everything else is generated or detected. Nothing needs sudo;
+# rootless Podman works.
 #
 #   ./setup-podman.sh                     # or ./setup-docker.sh
 #   ./setup-podman.sh --yes               # no questions at all
 #   ./setup-podman.sh --remote https://fluxline.yourco.com
 #                                                      # agent only, linked to a hosted UI
 #   ./setup-podman.sh status              # what's running; can the agent reach the engine
-#   ./setup-podman.sh down                # remove the containers (data is kept)
+#   ./setup-podman.sh down                # remove the container (data is kept)
 #
 # Optional environment variables:
-#   FLUXLINE_REGISTRY   where the Fluxline images come from (default docker.io/suneshantanu), for a
-#                       mirror; DB_IMAGE likewise for Postgres
+#   FLUXLINE_REGISTRY   where the image comes from (default docker.io/suneshantanu), for a mirror
+#   FLUXLINE_IMAGE      run this exact image (e.g. a local test build)
+#   FLUXLINE_PULL=0     use the image already on this machine instead of pulling (local testing)
 #   UI_PORT, AGENT_PORT host ports (default 3000, 3400)
 #   ADMIN_EMAIL, ADMIN_PASSWORD, OPENAI_API_KEY, FLUXLINE_TOOLCHAIN=0 (never mount the engine socket),
 #   FLUXLINE_VSCODE=0   don't install the VS Code bridge extension
-#   FLUXLINE_PULL=0     use images already on this machine instead of pulling (local testing)
-#   FLUXLINE_AGENT_IMAGE, FLUXLINE_UI_IMAGE   run these exact images (e.g. local test builds)
-#   FLUXLINE_NAME       prefix for containers, network and volumes (default fluxline), e.g. to run a
-#                       second, separate stack; FLUXLINE_HOME moves the saved answers
+#   FLUXLINE_NAME       name of the container and prefix of its volumes (default fluxline), e.g. to
+#                       run a second, separate copy; FLUXLINE_HOME moves the saved answers
 #
 # VS Code: when the `code` CLI is found, the bridge extension is installed from the UI. The agent
 # finds the bridge by itself (connection_mode: auto — the bridge's socket on Linux, the host gateway
-# on macOS/Windows) through the host's ~/.ai-sdlc mounted into it; nothing to configure.
+# on macOS/Windows) through the host's ~/.ai-sdlc mounted into the container; nothing to configure.
 #
-# Answers, the generated database password, admin password and agent token are saved in
-# ~/.fluxline/setup.env (mode 600), so re-running keeps the same data and logins.
+# Answers and the admin password are saved in ~/.fluxline/setup.env (mode 600), so re-running keeps
+# the same data and login.
 #
 # Engine socket: the agent runs build/test checks in sibling toolchain containers through the
 # `docker` CLI, which needs the engine's API socket mounted at /var/run/docker.sock. Under Podman
@@ -58,7 +58,7 @@ while [ $# -gt 0 ]; do
       shift
       ;;
     -h | --help)
-      sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *)
@@ -74,14 +74,12 @@ SELF="${FLUXLINE_WRAPPER:-$0 ${RUNTIME}}"
 STATE_DIR="${FLUXLINE_HOME:-$HOME/.fluxline}"
 STATE_FILE="${STATE_DIR}/setup.env"
 REGISTRY="${FLUXLINE_REGISTRY:-docker.io/suneshantanu}"
-DB_IMAGE="${DB_IMAGE:-docker.io/library/postgres:17-alpine}"
 NAME="${FLUXLINE_NAME:-fluxline}"
-NETWORK="${NAME}-net"
-DB_CONTAINER="${NAME}-db"
-AGENT_CONTAINER="${NAME}-agent"
-UI_CONTAINER="${NAME}-ui"
-DB_VOLUME="${NAME}-db-data"
-AGENT_VOLUME="${NAME}-agent-data"
+CONTAINER="${NAME}"
+DATA_VOLUME="${NAME}-data"
+PG_VOLUME="${NAME}-postgres"
+# Containers of the earlier three-container setup, replaced by the one container above.
+LEGACY_CONTAINERS="${NAME}-ui ${NAME}-agent ${NAME}-db"
 OS="$(uname -s)"
 
 # --- output and prompts ------------------------------------------------------------------------
@@ -131,18 +129,17 @@ confirm() {
 }
 
 random_token() { LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c "${1:-32}" || true; }
-json_escape() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'; }
 rt() { "${RUNTIME}" "$@"; }
 exists() { rt container inspect "$1" >/dev/null 2>&1; }
 
 STATE_KEYS="REMOTE_UI_URL REMOTE_AGENT_TOKEN WORKSPACE ADMIN_EMAIL ADMIN_PASSWORD AGENT_API_TOKEN
-  DB_PASSWORD ANTHROPIC_API_KEY OPENAI_API_KEY UI_PORT AGENT_PORT CONNECTION_CREATED"
+  ANTHROPIC_API_KEY OPENAI_API_KEY UI_PORT AGENT_PORT"
 
 save_state() {
   mkdir -p "${STATE_DIR}"
   (
     umask 077
-    echo "# Written by fluxline-setup.sh. Keep it: the database was initialised with DB_PASSWORD."
+    echo "# Written by fluxline-setup.sh. ADMIN_PASSWORD is the login of the first admin account."
     for key in ${STATE_KEYS}; do printf '%s=%q\n' "${key}" "${!key:-}"; done
   ) >"${STATE_FILE}"
   chmod 600 "${STATE_FILE}"
@@ -154,15 +151,24 @@ load_state() {
   while IFS= read -r line; do
     case "${line}" in '#'* | '') continue ;; esac
     key="${line%%=*}"
+    case " ${STATE_KEYS} " in *[[:space:]]"${key}"[[:space:]]*) ;; *) continue ;; esac
     [ -n "${!key:-}" ] && continue # environment variables win over saved answers
     eval "${line}"
   done <"${STATE_FILE}"
 }
 
+# HTTP status of a URL, or 000 when nothing answers.
+http_code() { curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$1" 2>/dev/null || true; }
+# The agent requires a token, so 401 still means it's up.
+agent_up() { case "$(http_code "http://127.0.0.1:${AGENT_PORT}/runtime")" in 200 | 401) return 0 ;; *) return 1 ;; esac; }
+# First boot creates the admin account; the UI is ready once it no longer asks for one.
+ui_ready() { curl -sf --max-time 5 "http://127.0.0.1:${UI_PORT}/api/auth/bootstrap" | grep -q '"needsBootstrap":false'; }
+stack_ready() { ui_ready && agent_up; }
+
 # --- engine checks -----------------------------------------------------------------------------
 SOCKET_CANDIDATES=()
 ENGINE_SOCKET=""
-EXTRA_AGENT_ARGS=()
+EXTRA_ARGS=()
 
 check_docker() {
   command -v docker >/dev/null 2>&1 ||
@@ -236,9 +242,9 @@ check_podman() {
   [ -n "${path}" ] && ok "Podman API socket: ${path}"
   SOCKET_CANDIDATES=(/var/run/docker.sock)
   [ -n "${path}" ] && SOCKET_CANDIDATES+=("${path}")
-  # SELinux (Fedora/RHEL) would block the agent from the socket and your folders; this skips
+  # SELinux (Fedora/RHEL) would block the container from the socket and your folders; this skips
   # relabelling rather than rewriting labels on your home directory.
-  EXTRA_AGENT_ARGS+=(--security-opt label=disable)
+  EXTRA_ARGS+=(--security-opt label=disable)
 }
 
 image_tag() {
@@ -249,17 +255,17 @@ image_tag() {
   esac
 }
 
-# wait_for "what" seconds container command...
+# wait_for "what" seconds command...
 wait_for() {
-  local what="$1" seconds="$2" container="$3" waited=0
-  shift 3
+  local what="$1" seconds="$2" waited=0
+  shift 2
   printf '  Waiting for %s' "${what}"
   until "$@" >/dev/null 2>&1; do
     waited=$((waited + 2))
     if [ "${waited}" -ge "${seconds}" ]; then
       echo
-      warn "${what} didn't come up within ${seconds}s. Last log lines from ${container}:"
-      rt logs --tail 30 "${container}" 2>&1 | sed 's/^/    /'
+      warn "${what} didn't come up within ${seconds}s. Last log lines:"
+      rt logs --tail 30 "${CONTAINER}" 2>&1 | sed 's/^/    /'
       die "${what} failed to start."
     fi
     printf '.'
@@ -270,14 +276,14 @@ wait_for() {
 }
 
 # Socket paths are as seen where containers run (inside the VM for Docker Desktop and Podman
-# machines), so the only reliable test is a throwaway container from the agent image (it ships the
+# machines), so the only reliable test is a throwaway container from the image (it ships the
 # docker CLI) talking to the engine through each candidate.
 choose_socket() {
   local image="$1" sock out
   for sock in "${SOCKET_CANDIDATES[@]}"; do
-    if out="$(rt run --rm ${EXTRA_AGENT_ARGS[@]+"${EXTRA_AGENT_ARGS[@]}"} \
+    if out="$(rt run --rm --entrypoint docker ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"} \
       -v "${sock}:/var/run/docker.sock" "${image}" \
-      docker version --format '{{.Server.Version}}' 2>&1)"; then
+      version --format '{{.Server.Version}}' 2>&1)"; then
       ENGINE_SOCKET="${sock}"
       ok "${sock} works (engine $(printf '%s' "${out}" | tail -1))"
       return 0
@@ -289,7 +295,7 @@ choose_socket() {
 
 verify_engine_from_agent() {
   local out
-  if out="$(rt exec "${AGENT_CONTAINER}" docker version --format '{{.Server.Version}}' 2>&1)"; then
+  if out="$(rt exec "${CONTAINER}" docker version --format '{{.Server.Version}}' 2>&1)"; then
     ok "The agent reaches the ${RUNTIME} engine (${out}): build/test checks run in toolchain containers"
     return 0
   fi
@@ -300,69 +306,79 @@ verify_engine_from_agent() {
 # --- actions -----------------------------------------------------------------------------------
 action_status() {
   load_state
-  step "Fluxline containers (${RUNTIME})"
-  rt ps -a --filter "name=${NAME}-" --format '{{.Names}}  {{.Status}}  {{.Ports}}' | sed 's/^/  /'
-  if exists "${AGENT_CONTAINER}"; then
-    if curl -sf -o /dev/null -H "Authorization: Bearer ${AGENT_API_TOKEN:-}" \
-      "http://127.0.0.1:${AGENT_PORT:-3400}/runtime"; then
-      ok "Agent API answers on :${AGENT_PORT:-3400}"
+  UI_PORT="${UI_PORT:-3000}"
+  AGENT_PORT="${AGENT_PORT:-3400}"
+  step "Fluxline (${RUNTIME})"
+  if ! exists "${CONTAINER}"; then
+    warn "No ${CONTAINER} container. Start it with: ${SELF}"
+    return 0
+  fi
+  rt ps -a --filter "name=^${CONTAINER}\$" --format '{{.Names}}  {{.Status}}  {{.Ports}}' | sed 's/^/  /'
+  if agent_up; then ok "Agent API answers on :${AGENT_PORT}"; else warn "Agent API isn't answering on :${AGENT_PORT}"; fi
+  if [ -z "${REMOTE_UI_URL:-}" ]; then
+    if [ "$(http_code "http://127.0.0.1:${UI_PORT}/health")" = 200 ]; then
+      ok "UI answers on http://localhost:${UI_PORT}"
     else
-      warn "Agent API isn't answering on :${AGENT_PORT:-3400}"
-    fi
-    if rt exec "${AGENT_CONTAINER}" test -S /var/run/docker.sock 2>/dev/null; then
-      verify_engine_from_agent || true
-    else
-      warn "No engine socket in the agent: build/test checks run in the agent's own shell"
+      warn "UI isn't answering on :${UI_PORT}"
     fi
   fi
-  if exists "${UI_CONTAINER}"; then
-    if curl -sf -o /dev/null "http://127.0.0.1:${UI_PORT:-3000}/health"; then
-      ok "UI answers on http://localhost:${UI_PORT:-3000}"
-    else
-      warn "UI isn't answering on :${UI_PORT:-3000}"
-    fi
+  if rt exec "${CONTAINER}" test -S /var/run/docker.sock 2>/dev/null; then
+    verify_engine_from_agent || true
+  else
+    warn "No engine socket in the container: build/test checks run inside it"
   fi
 }
 
 action_down() {
-  step "Removing Fluxline containers (${RUNTIME})"
-  local name
-  for name in "${UI_CONTAINER}" "${AGENT_CONTAINER}" "${DB_CONTAINER}"; do
-    if exists "${name}"; then rt rm -f "${name}" >/dev/null && ok "removed ${name}"; fi
-  done
+  step "Removing the Fluxline container (${RUNTIME})"
+  if exists "${CONTAINER}"; then rt rm -f "${CONTAINER}" >/dev/null && ok "removed ${CONTAINER}"; fi
   echo
-  echo "  Data is kept in the ${DB_VOLUME} and ${AGENT_VOLUME} volumes, and the logins in"
+  echo "  Data is kept in the ${DATA_VOLUME} and ${PG_VOLUME} volumes, and the login in"
   echo "  ${STATE_FILE}. Start again with: ${SELF}"
-  echo "  To wipe everything: ${RUNTIME} volume rm ${DB_VOLUME} ${AGENT_VOLUME} && rm ${STATE_FILE}"
+  echo "  To wipe everything: ${RUNTIME} volume rm ${DATA_VOLUME} ${PG_VOLUME} && rm ${STATE_FILE}"
 }
 
-start_db() {
-  step "Starting Postgres"
-  rt network inspect "${NETWORK}" >/dev/null 2>&1 || rt network create "${NETWORK}" >/dev/null
-  if exists "${DB_CONTAINER}"; then rt rm -f "${DB_CONTAINER}" >/dev/null; fi
-  rt run -d --name "${DB_CONTAINER}" --network "${NETWORK}" --restart unless-stopped \
-    -e POSTGRES_USER=fluxline -e POSTGRES_PASSWORD="${DB_PASSWORD}" -e POSTGRES_DB=fluxline \
-    -v "${DB_VOLUME}:/var/lib/postgresql/data" \
-    "${DB_IMAGE}" postgres -c max_connections=150 >/dev/null
-  wait_for "Postgres" 60 "${DB_CONTAINER}" rt exec "${DB_CONTAINER}" pg_isready -U fluxline -d fluxline
+# The earlier setup ran Postgres, the agent and the UI as three containers on the same ports.
+remove_legacy_containers() {
+  local name removed=0
+  for name in ${LEGACY_CONTAINERS}; do
+    if exists "${name}"; then
+      rt rm -f "${name}" >/dev/null
+      removed=1
+    fi
+  done
+  if [ "${removed}" = 1 ]; then
+    ok "Replaced the earlier three-container setup (${LEGACY_CONTAINERS// /, })"
+    warn "Its data stays in the ${NAME}-db-data and ${NAME}-agent-data volumes; this one starts fresh."
+  fi
 }
 
-start_agent() {
-  local image="$1" db_url="$2" origins="http://localhost:${UI_PORT},http://127.0.0.1:${UI_PORT}"
-  step "Starting the agent"
-  if exists "${AGENT_CONTAINER}"; then rt rm -f "${AGENT_CONTAINER}" >/dev/null; fi
+start_container() {
+  local image="$1" origins="http://localhost:${UI_PORT},http://127.0.0.1:${UI_PORT}"
+  step "Starting Fluxline"
+  if exists "${CONTAINER}"; then rt rm -f "${CONTAINER}" >/dev/null; fi
   local args=(
-    -d --name "${AGENT_CONTAINER}" --restart unless-stopped
+    -d --name "${CONTAINER}" --restart unless-stopped
     -p "${AGENT_PORT}:3400"
-    -v "${AGENT_VOLUME}:/data"
-    -e AI_SDLC_API_TOKEN
+    -v "${DATA_VOLUME}:/data"
   )
   if [ -n "${REMOTE_UI_URL}" ]; then
-    # The hosted UI's page calls this agent from the browser, so its origin must be allowed too.
+    # Agent only. The hosted UI's page calls this agent from the browser, so its origin must be
+    # allowed too.
     origins="${origins},$(printf '%s' "${REMOTE_UI_URL}" | sed -E 's#^(https?://[^/]+).*#\1#')"
-    args+=(-e AI_SDLC_REMOTE_UI_URL="${REMOTE_UI_URL}" -e AI_SDLC_AGENT_TOKEN)
+    args+=(
+      -e FLUXLINE_MODE=agent -e AI_SDLC_REMOTE_UI_URL="${REMOTE_UI_URL}"
+      -e AI_SDLC_AGENT_TOKEN -e AI_SDLC_API_TOKEN
+    )
   else
-    args+=(--network "${NETWORK}" -e AI_SDLC_DATABASE_URL="${db_url}" -e AI_SDLC_CHECKPOINTER=postgres)
+    # LOCAL_DEV (entrypoint default): served over plain http://localhost, so the session cookie
+    # isn't marked Secure. ADMIN_* are used on first boot only.
+    args+=(
+      -p "${UI_PORT}:3000"
+      -v "${PG_VOLUME}:/var/lib/postgresql/data"
+      -e ADMIN_EMAIL -e ADMIN_PASSWORD
+      -e AGENT_PUBLIC_URL="http://localhost:${AGENT_PORT}"
+    )
   fi
   args+=(-e AI_SDLC_ALLOWED_ORIGINS="${origins}")
   if [ "${WORKSPACE}" != - ]; then
@@ -390,54 +406,19 @@ start_agent() {
   if [ -n "${ANTHROPIC_API_KEY:-}" ]; then args+=(-e ANTHROPIC_API_KEY); fi
   if [ -n "${OPENAI_API_KEY:-}" ]; then args+=(-e OPENAI_API_KEY); fi
   if [ -n "${ENGINE_SOCKET}" ]; then
-    args+=(-v "${ENGINE_SOCKET}:/var/run/docker.sock" -e AI_SDLC_CONTAINER_ID="${AGENT_CONTAINER}")
+    args+=(-v "${ENGINE_SOCKET}:/var/run/docker.sock" -e AI_SDLC_CONTAINER_ID="${CONTAINER}")
   fi
-  if [ "${#EXTRA_AGENT_ARGS[@]}" -gt 0 ]; then args+=("${EXTRA_AGENT_ARGS[@]}"); fi
-  AI_SDLC_API_TOKEN="${AGENT_API_TOKEN}" AI_SDLC_AGENT_TOKEN="${REMOTE_AGENT_TOKEN:-}" \
+  if [ "${#EXTRA_ARGS[@]}" -gt 0 ]; then args+=("${EXTRA_ARGS[@]}"); fi
+  ADMIN_EMAIL="${ADMIN_EMAIL}" ADMIN_PASSWORD="${ADMIN_PASSWORD}" \
+    AI_SDLC_API_TOKEN="${AGENT_API_TOKEN}" AI_SDLC_AGENT_TOKEN="${REMOTE_AGENT_TOKEN:-}" \
     ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}" OPENAI_API_KEY="${OPENAI_API_KEY:-}" \
     rt run "${args[@]}" "${image}" >/dev/null
-  wait_for "Agent API" 120 "${AGENT_CONTAINER}" \
-    curl -sf -H "Authorization: Bearer ${AGENT_API_TOKEN}" "http://127.0.0.1:${AGENT_PORT}/runtime"
-}
-
-start_ui() {
-  local image="$1" db_url="$2"
-  step "Starting the UI"
-  if exists "${UI_CONTAINER}"; then rt rm -f "${UI_CONTAINER}" >/dev/null; fi
-  # LOCAL_DEV=true: served over plain http://localhost, so the session cookie must not be marked
-  # Secure (Safari would drop it).
-  rt run -d --name "${UI_CONTAINER}" --network "${NETWORK}" --restart unless-stopped \
-    -p "${UI_PORT}:3000" -e DATABASE_URL="${db_url}" -e LOCAL_DEV=true \
-    "${image}" >/dev/null
-  wait_for "UI" 120 "${UI_CONTAINER}" curl -sf "http://127.0.0.1:${UI_PORT}/api/auth/bootstrap"
-}
-
-# First run only: the admin account and the UI's connection to the agent, through the UI's own API.
-bootstrap_ui() {
-  local base="http://127.0.0.1:${UI_PORT}"
-  if ! curl -sf "${base}/api/auth/bootstrap" | grep -q '"needsBootstrap":true'; then
-    if [ "${CONNECTION_CREATED:-}" = 1 ]; then
-      ok "Admin account and agent connection already set up"
-    else
-      warn "An account already exists, so nothing was created. Sign in, open Control plane and"
-      warn "add http://localhost:${AGENT_PORT} with the agent token shown below."
-    fi
-    return 0
+  if [ -n "${REMOTE_UI_URL}" ]; then
+    wait_for "Agent API" 120 agent_up
+  else
+    # First boot initialises Postgres, applies the schema and creates the admin account.
+    wait_for "Fluxline" 240 stack_ready
   fi
-  COOKIE_JAR="$(mktemp)"
-  trap 'rm -f "${COOKIE_JAR:-}"' EXIT
-  curl -sf -c "${COOKIE_JAR}" -o /dev/null -X POST "${base}/api/auth/bootstrap" \
-    -H 'Content-Type: application/json' \
-    -d "{\"email\":\"$(json_escape "${ADMIN_EMAIL}")\",\"password\":\"$(json_escape "${ADMIN_PASSWORD}")\"}" ||
-    die "Creating the admin account failed (see: ${RUNTIME} logs ${UI_CONTAINER})."
-  ok "Admin account ${ADMIN_EMAIL} created"
-  curl -sf -b "${COOKIE_JAR}" -o /dev/null -X POST "${base}/api/connections" \
-    -H 'Content-Type: application/json' \
-    -d "{\"label\":\"Local agent\",\"apiBase\":\"http://localhost:${AGENT_PORT}\",\"apiToken\":\"${AGENT_API_TOKEN}\"}" ||
-    die "Creating the agent connection failed (see: ${RUNTIME} logs ${UI_CONTAINER})."
-  CONNECTION_CREATED=1
-  save_state
-  ok "UI connected to the agent at http://localhost:${AGENT_PORT}"
 }
 
 find_code_cli() {
@@ -484,10 +465,8 @@ action_up() {
 
   step "Checking ${RUNTIME}"
   "check_${RUNTIME}"
-  local tag agent_image ui_image
-  tag="$(image_tag)"
-  agent_image="${FLUXLINE_AGENT_IMAGE:-${REGISTRY}/fluxline-agent:${tag}}"
-  ui_image="${FLUXLINE_UI_IMAGE:-${REGISTRY}/fluxline-ui:${tag}}"
+  local image
+  image="${FLUXLINE_IMAGE:-${REGISTRY}/fluxline-standalone:$(image_tag)}"
 
   load_state
   [ -n "${CLI_REMOTE_UI_URL}" ] && REMOTE_UI_URL="${CLI_REMOTE_UI_URL%/}"
@@ -529,49 +508,41 @@ action_up() {
     [ -n "${REMOTE_AGENT_TOKEN:-}" ] || die "A personal access token is required to link to ${REMOTE_UI_URL}."
   fi
 
-  # Generated once and reused: the database volume is initialised with this password.
-  if [ -z "${REMOTE_UI_URL}" ] && [ -z "${DB_PASSWORD:-}" ]; then
-    if rt volume inspect "${DB_VOLUME}" >/dev/null 2>&1; then
-      die "The ${DB_VOLUME} volume exists but its password isn't in ${STATE_FILE}. Re-run with DB_PASSWORD=<it>, or start fresh: ${RUNTIME} volume rm ${DB_VOLUME}"
-    fi
-    DB_PASSWORD="$(random_token 24)"
+  # The admin account is created from these on the first start only; an existing data volume keeps
+  # the account it already has.
+  local existing_data=0
+  rt volume inspect "${DATA_VOLUME}" >/dev/null 2>&1 && existing_data=1
+  if [ -z "${ADMIN_PASSWORD:-}" ] && [ "${existing_data}" = 1 ] && [ -z "${REMOTE_UI_URL}" ]; then
+    warn "${DATA_VOLUME} already has an account, and its password isn't in ${STATE_FILE}."
+    warn "Sign in with the password you chose then, or start fresh: ${RUNTIME} volume rm ${DATA_VOLUME} ${PG_VOLUME}"
   fi
   ADMIN_PASSWORD="${ADMIN_PASSWORD:-$(random_token 16)}"
   [ "${#ADMIN_PASSWORD}" -ge 8 ] || die "ADMIN_PASSWORD must be at least 8 characters."
+  # Only used in agent-only mode, where the hosted UI needs it to call this agent.
   AGENT_API_TOKEN="${AGENT_API_TOKEN:-fl-$(random_token 32)}"
   save_state
 
-  step "Pulling images"
-  local images=("${agent_image}") image
-  [ -z "${REMOTE_UI_URL}" ] && images+=("${ui_image}" "${DB_IMAGE}")
-  for image in "${images[@]}"; do
-    # FLUXLINE_PULL=0: use images already on this machine (e.g. built locally to test before publishing).
-    if [ "${FLUXLINE_PULL:-1}" = 0 ] && rt image inspect "${image}" >/dev/null 2>&1; then
-      echo "  ${image} (local)"
-      continue
-    fi
+  step "Pulling the image"
+  # FLUXLINE_PULL=0: use an image already on this machine (e.g. built locally to test before publishing).
+  if [ "${FLUXLINE_PULL:-1}" = 0 ] && rt image inspect "${image}" >/dev/null 2>&1; then
+    echo "  ${image} (local)"
+  else
     echo "  ${image}"
     rt pull -q "${image}" >/dev/null ||
-      die "Couldn't pull ${image}. To pull from a mirror, set FLUXLINE_REGISTRY (and DB_IMAGE) and re-run."
-  done
-  ok "Images ready"
+      die "Couldn't pull ${image}. To pull from a mirror, set FLUXLINE_REGISTRY and re-run."
+  fi
+  ok "Image ready"
 
   if [ "${FLUXLINE_TOOLCHAIN:-1}" != 0 ]; then
     step "Checking which ${RUNTIME} socket the agent can use for build/test containers"
-    choose_socket "${agent_image}" ||
-      warn "None did, so build/test checks will run inside the agent's own container instead."
+    choose_socket "${image}" ||
+      warn "None did, so build/test checks will run inside the Fluxline container instead."
   fi
 
-  local db_url="postgresql://fluxline:${DB_PASSWORD:-}@${DB_CONTAINER}:5432/fluxline"
-  if [ -z "${REMOTE_UI_URL}" ]; then start_db; fi
-  start_agent "${agent_image}" "${db_url}"
+  remove_legacy_containers
+  start_container "${image}"
   local engine_ok=1
   if [ -n "${ENGINE_SOCKET}" ]; then verify_engine_from_agent || engine_ok=0; fi
-  if [ -z "${REMOTE_UI_URL}" ]; then
-    start_ui "${ui_image}" "${db_url}"
-    step "Signing you up"
-    bootstrap_ui
-  fi
 
   if [ "${FLUXLINE_VSCODE:-1}" != 0 ]; then
     install_vscode_bridge "$([ -n "${REMOTE_UI_URL}" ] && echo "${REMOTE_UI_URL}" || echo "http://127.0.0.1:${UI_PORT}")"
@@ -586,9 +557,9 @@ action_up() {
     echo "  Agent token:  ${AGENT_API_TOKEN}"
   fi
   echo "  Coding agent: VS Code$([ -n "${ANTHROPIC_API_KEY:-}" ] && echo ", Claude")$({ [ -n "${OPENAI_API_KEY:-}" ] || [ -f "${HOME}/.codex/auth.json" ]; } && echo ", Codex") (pick one in + New change)"
-  echo "  Checks run:   $([ -n "${ENGINE_SOCKET}" ] && [ "${engine_ok}" = 1 ] && echo "in toolchain containers" || echo "inside the agent container")"
+  echo "  Checks run:   $([ -n "${ENGINE_SOCKET}" ] && [ "${engine_ok}" = 1 ] && echo "in toolchain containers" || echo "inside the Fluxline container")"
   echo "  Saved in:     ${STATE_FILE}"
-  echo "  ${DIM}Status: ${SELF} status   Logs: ${RUNTIME} logs -f ${AGENT_CONTAINER}   Stop: ${SELF} down${RESET}"
+  echo "  ${DIM}Status: ${SELF} status   Logs: ${RUNTIME} logs -f ${CONTAINER}   Stop: ${SELF} down${RESET}"
 }
 
 "action_${ACTION}"

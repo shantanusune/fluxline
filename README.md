@@ -146,19 +146,21 @@ any new commit invalidates the approval. **Send back** returns it to the agent w
    there isn't one. On Linux it starts your user's Podman API service.
 2. **Asks two questions:** the folder with your code (a repository, or a folder of repositories)
    and an optional Anthropic API key. Press Enter to accept the defaults.
-3. **Pulls the images** for your CPU (`arm64` or `amd64`) and starts three containers on a private
-   network: Postgres, the agent and the UI.
-4. **Signs you up.** Creates the admin account and connects the UI to the agent with a generated
-   token.
+3. **Pulls one image**, `fluxline-standalone`, and starts it as one container, `fluxline`, with
+   the UI, the agent and its Postgres database inside.
+4. **Signs you up.** The first start creates the admin account and connects the UI to the agent.
 5. **Sets up build/test containers.** Builds and tests run in their own toolchain containers
    (Maven, Gradle, Node, Go, Python, Rust). The script finds an engine socket the agent can use and
    checks it actually works; if none does, checks run inside the agent instead.
 6. **Installs the VS Code bridge extension** when the `code` command is available. The agent
    finds VS Code by itself; reload open VS Code windows once.
 
-Your answers, the database password, the admin password and the agent token are saved in
-`~/.fluxline/setup.env` (readable only by you). Running the script again keeps all of them, so it's
-also how you update: it pulls the latest images and recreates the containers with the same data.
+Your answers and the admin password are saved in `~/.fluxline/setup.env` (readable only by you).
+Running the script again keeps them, so it's also how you update: it pulls the latest image and
+recreates the container with the same data.
+
+Coming from the earlier three-container setup (`fluxline-ui`, `fluxline-agent`, `fluxline-db`)?
+The script replaces those containers. Their data stays in the old volumes and isn't carried over.
 
 ## Everyday commands
 
@@ -166,18 +168,18 @@ Use `setup-docker.sh` in place of `setup-podman.sh` on Docker.
 
 | Command | What it does |
 | --- | --- |
-| `./setup-podman.sh` | Set up, or update to the latest images |
+| `./setup-podman.sh` | Set up, or update to the latest image |
 | `./setup-podman.sh --yes` | Same, without questions |
 | `./setup-podman.sh status` | What's running, and whether the agent reaches the engine |
-| `./setup-podman.sh down` | Remove the containers; your data is kept |
+| `./setup-podman.sh down` | Remove the container; your data is kept |
 | `./setup-podman.sh --remote https://fluxline.example.com` | Run only the agent, linked to a Fluxline UI your team already hosts. It asks for a personal access token from that UI's **Account → Agent tokens**. |
-| `podman logs -f fluxline-agent` | Watch the agent work |
+| `podman logs -f fluxline` | Watch Fluxline work |
 
 To remove everything, including data:
 
 ```bash
 ./setup-podman.sh down
-podman volume rm fluxline-db-data fluxline-agent-data
+podman volume rm fluxline-data fluxline-postgres
 rm ~/.fluxline/setup.env
 ```
 
@@ -201,10 +203,10 @@ Set any of these before running the script, for example
 | `UI_PORT` / `AGENT_PORT` | `3000` / `3400` | Host ports. |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | `admin@localhost.com` / generated | The first admin account. |
 | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | none | Coding agent credentials, without being asked. |
-| `FLUXLINE_REGISTRY` | `docker.io/suneshantanu` | Pull the Fluxline images from another registry, such as a mirror. `DB_IMAGE` does the same for Postgres. |
-| `FLUXLINE_TOOLCHAIN=0` | on | Never give the agent the engine socket; checks run inside the agent. |
+| `FLUXLINE_REGISTRY` | `docker.io/suneshantanu` | Pull the Fluxline image from another registry, such as a mirror. |
+| `FLUXLINE_TOOLCHAIN=0` | on | Never give the container the engine socket; checks run inside it. |
 | `FLUXLINE_VSCODE=0` | on | Don't install the VS Code bridge extension. |
-| `FLUXLINE_NAME` | `fluxline` | Prefix for containers, network and volumes, to run a second, separate stack. |
+| `FLUXLINE_NAME` | `fluxline` | Name of the container and prefix of its volumes, to run a second, separate copy. |
 
 ## Behind a proxy
 
@@ -216,7 +218,7 @@ go through the proxy.
 If image pulls are blocked, pull from a mirror instead:
 
 ```bash
-FLUXLINE_REGISTRY=registry.example.com/fluxline DB_IMAGE=registry.example.com/postgres:17-alpine ./setup-podman.sh
+FLUXLINE_REGISTRY=registry.example.com/fluxline ./setup-podman.sh
 ```
 
 ## Podman notes
@@ -225,12 +227,12 @@ FLUXLINE_REGISTRY=registry.example.com/fluxline DB_IMAGE=registry.example.com/po
   your repositories belong to you.
 - On SELinux systems (Fedora, RHEL) your folders are never relabelled.
 - On macOS the Podman machine only sees your home folder, so keep your code under it.
-- The engine socket the agent gets grants nothing beyond what your own user can do. With Docker it
-  gives root access to that machine; set `FLUXLINE_TOOLCHAIN=0` to leave it out.
+- The engine socket the container gets grants nothing beyond what your own user can do. With Docker
+  it gives root access to that machine; set `FLUXLINE_TOOLCHAIN=0` to leave it out.
 
-## What's mounted into the agent
+## What's mounted into the container
 
-| Host | In the agent | Why |
+| Host | In the container | Why |
 | --- | --- | --- |
 | Your code folder | same path | The repositories it works on; paths in the UI and logs match your machine. |
 | `~/fluxline-repos` | `/repos` | Where **Check out repositories** clones land. |
@@ -246,18 +248,20 @@ FLUXLINE_REGISTRY=registry.example.com/fluxline DB_IMAGE=registry.example.com/po
 | --- | --- |
 | `status` says the agent can't reach the engine | Re-run the script; it re-checks the sockets. On Linux with Podman: `systemctl --user enable --now podman.socket`. |
 | VS Code isn't listed as available | Open VS Code (the bridge starts with it), then use **Validate** on the VS Code card under **Configuration → Agents** in the UI. |
-| `Couldn't pull …` | Pull from a mirror: set `FLUXLINE_REGISTRY` and `DB_IMAGE` (see [Behind a proxy](#behind-a-proxy)). |
-| `The fluxline-db-data volume exists but its password isn't in …` | `~/.fluxline/setup.env` was removed. Restore it, or start fresh with `podman volume rm fluxline-db-data`. |
+| `Couldn't pull …` | Pull from a mirror: set `FLUXLINE_REGISTRY` (see [Behind a proxy](#behind-a-proxy)). |
+| `fluxline-data already has an account, and its password isn't in …` | `~/.fluxline/setup.env` was removed. Sign in with the password you chose, or start fresh with `podman volume rm fluxline-data fluxline-postgres`. |
 | A port is already in use | `UI_PORT=3100 AGENT_PORT=3500 ./setup-podman.sh` |
 
 ## Images
 
 | Image | What it runs | Tags |
 | --- | --- | --- |
-| [`suneshantanu/fluxline-ui`](https://hub.docker.com/r/suneshantanu/fluxline-ui) | The web app: tasks, approvals, Jira, settings, users | `arm64`, `amd64` |
-| [`suneshantanu/fluxline-agent`](https://hub.docker.com/r/suneshantanu/fluxline-agent) | The pipeline: requirement review, planning, coding agent, checks, pull requests | `arm64`, `amd64` |
+| [`suneshantanu/fluxline-standalone`](https://hub.docker.com/r/suneshantanu/fluxline-standalone) | Everything in one container: the web app (tasks, approvals, Jira, settings, users), the agent (requirement review, planning, coding agent, checks, pull requests) and its Postgres database | `arm64`, `amd64` |
 
 The script picks the tag for your machine.
+
+To run only the agent, for example linked to a Fluxline UI your team already hosts, use the same
+image with `-e FLUXLINE_MODE=agent` (or `--remote`, above).
 
 ## License
 
