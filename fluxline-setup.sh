@@ -10,6 +10,8 @@
 #                                                      # agent only, linked to a hosted UI
 #   ./setup-podman.sh status              # what's running; can the agent reach the engine
 #   ./setup-podman.sh down                # remove the container (data is kept)
+#   ./setup-podman.sh --clean             # wipe everything (data, saved keys, login) and start fresh
+#   ./setup-podman.sh down --clean        # wipe everything without starting again
 #
 # Optional environment variables:
 #   FLUXLINE_REGISTRY   where the image comes from (default docker.io/suneshantanu), for a mirror
@@ -47,25 +49,28 @@ fi
 case "${RUNTIME}" in
   docker | podman) ;;
   *)
-    echo "Usage: $0 <docker|podman> [up|status|down] [--yes] [--remote <ui-url>]" >&2
+    echo "Usage: $0 <docker|podman> [up|status|down] [--yes] [--clean] [--remote <ui-url>]" >&2
     exit 2
     ;;
 esac
 
 ACTION=up
 ASSUME_YES=0
+EXPLICIT_YES=0
+CLEAN=0
 CLI_REMOTE_UI_URL=""
 while [ $# -gt 0 ]; do
   case "$1" in
     up | status | down) ACTION="$1" ;;
-    -y | --yes) ASSUME_YES=1 ;;
+    -y | --yes) ASSUME_YES=1 EXPLICIT_YES=1 ;;
+    --clean) CLEAN=1 ;;
     --remote)
       [ $# -ge 2 ] || { echo "--remote needs the hosted UI's address" >&2; exit 2; }
       CLI_REMOTE_UI_URL="$2"
       shift
       ;;
     -h | --help)
-      sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,/^set -euo/p' "$0" | grep '^#' | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *)
@@ -133,6 +138,16 @@ confirm() {
   [ "${ASSUME_YES}" = 1 ] && return 0
   read -r -p "  $1 [Y/n]: " reply || true
   case "${reply}" in [nN]*) return 1 ;; *) return 0 ;; esac
+}
+
+# confirm_destructive "Question" — default No: only an explicit y/yes goes ahead (or --yes).
+confirm_destructive() {
+  local reply=""
+  [ "${EXPLICIT_YES}" = 1 ] && return 0
+  # Not a terminal and no --yes: never assume consent to delete.
+  [ -t 0 ] || return 1
+  read -r -p "  $1 [y/N]: " reply || true
+  case "${reply}" in [yY] | [yY][eE][sS]) return 0 ;; *) return 1 ;; esac
 }
 
 random_token() { LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c "${1:-32}" || true; }
@@ -446,27 +461,68 @@ action_status() {
 }
 
 action_down() {
-  step "Removing the Fluxline container (${RUNTIME})"
-  if exists "${CONTAINER}"; then rt rm -f "${CONTAINER}" >/dev/null && ok "removed ${CONTAINER}"; fi
+  if [ "${CLEAN}" = 1 ]; then
+    clean_everything
+    echo
+    echo "  Everything is removed. Start fresh with: ${SELF}"
+    return 0
+  fi
+  stop_running
   echo
   echo "  Data is kept in the ${DATA_VOLUME} and ${PG_VOLUME} volumes, and the login in"
   echo "  ${STATE_FILE}. Start again with: ${SELF}"
-  echo "  To wipe everything: ${RUNTIME} volume rm ${DATA_VOLUME} ${PG_VOLUME} && rm ${STATE_FILE}"
+  echo "  To wipe everything (data, saved keys, login): ${SELF} down --clean"
 }
 
-# The earlier setup ran Postgres, the agent and the UI as three containers on the same ports.
-remove_legacy_containers() {
-  local name removed=0
-  for name in ${LEGACY_CONTAINERS}; do
-    if exists "${name}"; then
-      rt rm -f "${name}" >/dev/null
-      removed=1
-    fi
+# Fluxline's container and the earlier setup's three (Postgres, agent, UI on the same ports).
+fluxline_containers() {
+  local name
+  for name in "${CONTAINER}" ${LEGACY_CONTAINERS}; do
+    if exists "${name}"; then echo "${name}"; fi
   done
-  if [ "${removed}" = 1 ]; then
-    ok "Replaced the earlier three-container setup (${LEGACY_CONTAINERS// /, })"
-    warn "Its data stays in the ${NAME}-db-data and ${NAME}-agent-data volumes; this one starts fresh."
-  fi
+}
+
+# Stops and removes every Fluxline container still around, so ports and names are free. Volumes
+# (the data) stay unless --clean.
+stop_running() {
+  local names
+  names="$(fluxline_containers | tr '\n' ' ')"
+  [ -n "${names// /}" ] || return 0
+  step "Stopping the running Fluxline"
+  local name
+  for name in ${names}; do
+    rt rm -f "${name}" >/dev/null 2>&1 && ok "stopped and removed ${name}"
+  done
+  case " ${names} " in
+    *" ${NAME}-agent "* | *" ${NAME}-ui "* | *" ${NAME}-db "*)
+      [ "${CLEAN}" = 1 ] ||
+        warn "That was the earlier three-container setup; its data stays in ${NAME}-db-data and ${NAME}-agent-data (--clean removes them)."
+      ;;
+  esac
+  rt network rm "${NAME}-net" >/dev/null 2>&1 || true
+}
+
+# --clean: everything this script created, so the next start is a first start. Never touches the
+# code folder, ~/fluxline-repos or the VS Code bridge settings (~/.ai-sdlc).
+clean_everything() {
+  local volumes=() volume
+  for volume in "${DATA_VOLUME}" "${PG_VOLUME}" "${NAME}-db-data" "${NAME}-agent-data"; do
+    if rt volume inspect "${volume}" >/dev/null 2>&1; then volumes+=("${volume}"); fi
+  done
+  step "Clean start: removing all Fluxline data"
+  echo "  This deletes:"
+  echo "    - containers: $(fluxline_containers | tr '\n' ' ' | sed 's/ *$//' | sed 's/^$/(none running)/')"
+  echo "    - volumes: ${volumes[*]:-(none)}  (tasks, workspaces, users, saved API keys and Git credentials)"
+  echo "    - saved answers and admin login: ${STATE_FILE}"
+  echo "    - task working copies: ${STATE_DIR}/runs"
+  echo "  Your code folder, ~/fluxline-repos and VS Code settings are not touched."
+  confirm_destructive "Delete all of this?" || die "Nothing was deleted."
+  stop_running
+  for volume in ${volumes[@]+"${volumes[@]}"}; do
+    rt volume rm -f "${volume}" >/dev/null 2>&1 && ok "removed volume ${volume}"
+  done
+  rm -f "${STATE_FILE}" && ok "removed ${STATE_FILE}"
+  if [ -d "${STATE_DIR}/runs" ]; then rm -rf "${STATE_DIR}/runs" && ok "removed ${STATE_DIR}/runs"; fi
 }
 
 start_container() {
@@ -588,6 +644,7 @@ action_up() {
   local image
   image="${FLUXLINE_IMAGE:-${REGISTRY}/fluxline-standalone:$(image_tag)}"
 
+  if [ "${CLEAN}" = 1 ]; then clean_everything; fi
   load_state
   [ -n "${CLI_REMOTE_UI_URL}" ] && REMOTE_UI_URL="${CLI_REMOTE_UI_URL%/}"
   REMOTE_UI_URL="${REMOTE_UI_URL:-}"
@@ -665,7 +722,7 @@ action_up() {
       warn "None did, so build/test checks will run inside the Fluxline container instead."
   fi
 
-  remove_legacy_containers
+  stop_running
   start_container "${image}"
   local engine_ok=1
   if [ -n "${ENGINE_SOCKET}" ]; then verify_engine_from_agent || engine_ok=0; fi

@@ -96,16 +96,13 @@ Use `setup-docker.sh` in place of `setup-podman.sh` on Docker.
 | `./setup-podman.sh --yes` | Same, without questions |
 | `./setup-podman.sh status` | What's running, and whether the agent reaches the engine |
 | `./setup-podman.sh down` | Remove the container; your data is kept |
+| `./setup-podman.sh --clean` | Start completely fresh: deletes the data (tasks, workspaces, users, saved API keys and Git credentials), the saved login and the task working copies, then sets up again. It lists what it deletes and asks first; add `--yes` to skip the question. Your code folder is never touched. |
+| `./setup-podman.sh down --clean` | The same clean-up, without starting again |
 | `./setup-podman.sh --remote https://fluxline.example.com` | Run only the agent, linked to a Fluxline UI your team already hosts. It asks for a personal access token from that UI's **Account → Agent tokens**. |
 | `podman logs -f fluxline` | Watch Fluxline work |
 
-To remove everything, including data:
-
-```bash
-./setup-podman.sh down
-podman volume rm fluxline-data fluxline-postgres
-rm ~/.fluxline/setup.env
-```
+Every run stops the Fluxline that's already running first (including containers from the earlier
+three-container setup), then starts the new one with the same data.
 
 ## Coding agents
 
