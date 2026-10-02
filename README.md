@@ -12,7 +12,7 @@ as a pull request.
 One command. It asks for your code folder and, optionally, an Anthropic API key; everything else
 is set up for you.
 
-**Podman** (no admin rights needed)
+**Podman**
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/shantanusune/fluxline/main/setup-podman.sh)
@@ -68,7 +68,7 @@ Use `setup-docker.sh` in place of `setup-podman.sh` on Docker.
 | `./setup-podman.sh --yes` | Same, without questions |
 | `./setup-podman.sh status` | What's running, and whether the agent reaches the engine |
 | `./setup-podman.sh down` | Remove the containers; your data is kept |
-| `./setup-podman.sh --remote https://fluxline.yourcompany.com` | Run only the agent, linked to a Fluxline UI your team already hosts. It asks for a personal access token from that UI's **Account → Agent tokens**. |
+| `./setup-podman.sh --remote https://fluxline.example.com` | Run only the agent, linked to a Fluxline UI your team already hosts. It asks for a personal access token from that UI's **Account → Agent tokens**. |
 | `podman logs -f fluxline-agent` | Watch the agent work |
 
 To remove everything, including data:
@@ -99,23 +99,32 @@ Set any of these before running the script, for example
 | `UI_PORT` / `AGENT_PORT` | `3000` / `3400` | Host ports. |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | `admin@localhost.com` / generated | The first admin account. |
 | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | none | Coding agent credentials, without being asked. |
-| `FLUXLINE_REGISTRY` | `docker.io/suneshantanu` | Pull the Fluxline images from a company mirror instead. `DB_IMAGE` does the same for Postgres. |
+| `FLUXLINE_REGISTRY` | `docker.io/suneshantanu` | Pull the Fluxline images from another registry, such as a mirror. `DB_IMAGE` does the same for Postgres. |
 | `FLUXLINE_TOOLCHAIN=0` | on | Never give the agent the engine socket; checks run inside the agent. |
 | `FLUXLINE_VSCODE=0` | on | Don't install the VS Code bridge extension. |
 | `FLUXLINE_NAME` | `fluxline` | Prefix for containers, network and volumes, to run a second, separate stack. |
 
-## Corporate machines
+## Behind a proxy
 
-The Podman path is built for locked-down laptops:
+Fluxline works behind an HTTP proxy. The containers use your proxy settings for internet access
+(Podman passes them on automatically; with Docker, set them in Docker Desktop under
+**Settings → Resources → Proxies**). Connections between Fluxline and VS Code on your machine never
+go through the proxy.
 
-- **No admin rights.** Rootless Podman is the target and nothing uses `sudo`. Containers run as
-  your own user, and files the agent writes in your repositories belong to you.
-- **Engine socket.** Under rootless Podman, the socket the agent gets grants nothing beyond what
-  your own user can already do. (With rootful Docker it's root-equivalent on that machine; set
-  `FLUXLINE_TOOLCHAIN=0` if that's a concern.)
-- **SELinux** (Fedora, RHEL): your folders are never relabelled.
-- **Image mirror:** `FLUXLINE_REGISTRY=registry.yourcompany.com/fluxline DB_IMAGE=registry.yourcompany.com/postgres:17-alpine`.
-- **macOS:** the Podman machine only sees your home folder, so keep your code under it.
+If image pulls are blocked, pull from a mirror instead:
+
+```bash
+FLUXLINE_REGISTRY=registry.example.com/fluxline DB_IMAGE=registry.example.com/postgres:17-alpine ./setup-podman.sh
+```
+
+## Podman notes
+
+- Runs rootless: nothing uses `sudo`, containers run as your own user, and files the agent writes in
+  your repositories belong to you.
+- On SELinux systems (Fedora, RHEL) your folders are never relabelled.
+- On macOS the Podman machine only sees your home folder, so keep your code under it.
+- The engine socket the agent gets grants nothing beyond what your own user can do. With Docker it
+  gives root access to that machine; set `FLUXLINE_TOOLCHAIN=0` to leave it out.
 
 ## What's mounted into the agent
 
@@ -124,6 +133,7 @@ The Podman path is built for locked-down laptops:
 | Your code folder | same path | The repositories it works on; paths in the UI and logs match your machine. |
 | `~/fluxline-repos` | `/repos` | Where **Check out repositories** clones land. |
 | `~/.ai-sdlc` | `/root/.ai-sdlc` | How the agent finds the VS Code bridge. |
+| `~/.fluxline/runs` | same path | Each task's working copy, where VS Code can edit it. |
 | `~/.gitconfig`, `~/.ssh` | read-only | Your commit identity and SSH keys, if present. |
 | `~/.codex` | `/root/.codex` | An existing Codex login, if present. |
 | The engine socket | `/var/run/docker.sock` | Build/test toolchain containers. |
@@ -134,7 +144,7 @@ The Podman path is built for locked-down laptops:
 | --- | --- |
 | `status` says the agent can't reach the engine | Re-run the script; it re-checks the sockets. On Linux with Podman: `systemctl --user enable --now podman.socket`. |
 | VS Code isn't listed as available | Open VS Code (the bridge starts with it), then use **Validate** on the VS Code card under **Configuration → Agents** in the UI. |
-| `Couldn't pull …` | Behind a proxy or a mirror: set `FLUXLINE_REGISTRY` and `DB_IMAGE`. |
+| `Couldn't pull …` | Pull from a mirror: set `FLUXLINE_REGISTRY` and `DB_IMAGE` (see [Behind a proxy](#behind-a-proxy)). |
 | `The fluxline-db-data volume exists but its password isn't in …` | `~/.fluxline/setup.env` was removed. Restore it, or start fresh with `podman volume rm fluxline-db-data`. |
 | A port is already in use | `UI_PORT=3100 AGENT_PORT=3500 ./setup-podman.sh` |
 

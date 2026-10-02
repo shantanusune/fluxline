@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Fluxline setup wizard: starts the whole stack (Postgres + agent + UI) from the published images on
 # Docker or Podman. Asks two things: your code folder and, optionally, an Anthropic API key.
-# Everything else is generated or detected. Needs no admin rights: rootless Podman is the target.
+# Everything else is generated or detected. Nothing needs sudo; rootless Podman works.
 #
 #   ./setup-podman.sh                     # or ./setup-docker.sh
 #   ./setup-podman.sh --yes               # no questions at all
@@ -12,10 +12,12 @@
 #
 # Optional environment variables:
 #   FLUXLINE_REGISTRY   where the Fluxline images come from (default docker.io/suneshantanu), for a
-#                       corporate mirror; DB_IMAGE likewise for Postgres
+#                       mirror; DB_IMAGE likewise for Postgres
 #   UI_PORT, AGENT_PORT host ports (default 3000, 3400)
 #   ADMIN_EMAIL, ADMIN_PASSWORD, OPENAI_API_KEY, FLUXLINE_TOOLCHAIN=0 (never mount the engine socket),
 #   FLUXLINE_VSCODE=0   don't install the VS Code bridge extension
+#   FLUXLINE_PULL=0     use images already on this machine instead of pulling (local testing)
+#   FLUXLINE_AGENT_IMAGE, FLUXLINE_UI_IMAGE   run these exact images (e.g. local test builds)
 #   FLUXLINE_NAME       prefix for containers, network and volumes (default fluxline), e.g. to run a
 #                       second, separate stack; FLUXLINE_HOME moves the saved answers
 #
@@ -185,7 +187,7 @@ podman_socket_path() {
 
 check_podman() {
   command -v podman >/dev/null 2>&1 ||
-    die "podman isn't installed. macOS/Windows: install Podman Desktop and let it install Podman (no admin rights needed for a rootless machine). Linux: ask for the podman package."
+    die "podman isn't installed. macOS/Windows: install Podman Desktop and let it install Podman. Linux: install the podman package."
   local version
   version="$(podman --version | awk '{print $NF}')"
   case "${version}" in [0-3].*) die "Podman ${version} is too old; 4.0 or newer is needed." ;; esac
@@ -220,7 +222,7 @@ check_podman() {
       if systemctl --user enable --now podman.socket >/dev/null 2>&1; then
         ok "Started your user's Podman API socket (systemctl --user podman.socket)"
       else
-        # No systemd user session (common on locked-down hosts): serve it from a background process.
+        # No systemd user session: serve it from a background process.
         mkdir -p "$(dirname "${path}")"
         nohup podman system service --time=0 "unix://${path}" >/dev/null 2>&1 &
         sleep 1
@@ -369,6 +371,10 @@ start_agent() {
   fi
   mkdir -p "${HOME}/fluxline-repos"
   args+=(-v "${HOME}/fluxline-repos:/repos")
+  # Task working copies live here, at the same path inside and out, so VS Code (the bridge runs
+  # on this machine) can edit them; under the data volume it would see paths that don't exist.
+  mkdir -p "${STATE_DIR}/runs"
+  args+=(-v "${STATE_DIR}/runs:${STATE_DIR}/runs" -e AI_SDLC_RUN_ROOT="${STATE_DIR}/runs")
   if [ -f "${HOME}/.gitconfig" ]; then args+=(-v "${HOME}/.gitconfig:/root/.gitconfig:ro"); fi
   if [ -d "${HOME}/.ssh" ]; then args+=(-v "${HOME}/.ssh:/root/.ssh:ro"); fi
   if [ -d "${HOME}/.codex" ]; then args+=(-v "${HOME}/.codex:/root/.codex"); fi
@@ -480,8 +486,8 @@ action_up() {
   "check_${RUNTIME}"
   local tag agent_image ui_image
   tag="$(image_tag)"
-  agent_image="${REGISTRY}/fluxline-agent:${tag}"
-  ui_image="${REGISTRY}/fluxline-ui:${tag}"
+  agent_image="${FLUXLINE_AGENT_IMAGE:-${REGISTRY}/fluxline-agent:${tag}}"
+  ui_image="${FLUXLINE_UI_IMAGE:-${REGISTRY}/fluxline-ui:${tag}}"
 
   load_state
   [ -n "${CLI_REMOTE_UI_URL}" ] && REMOTE_UI_URL="${CLI_REMOTE_UI_URL%/}"
@@ -539,9 +545,14 @@ action_up() {
   local images=("${agent_image}") image
   [ -z "${REMOTE_UI_URL}" ] && images+=("${ui_image}" "${DB_IMAGE}")
   for image in "${images[@]}"; do
+    # FLUXLINE_PULL=0: use images already on this machine (e.g. built locally to test before publishing).
+    if [ "${FLUXLINE_PULL:-1}" = 0 ] && rt image inspect "${image}" >/dev/null 2>&1; then
+      echo "  ${image} (local)"
+      continue
+    fi
     echo "  ${image}"
     rt pull -q "${image}" >/dev/null ||
-      die "Couldn't pull ${image}. Behind a corporate proxy or mirror? Set FLUXLINE_REGISTRY (and DB_IMAGE) and re-run."
+      die "Couldn't pull ${image}. To pull from a mirror, set FLUXLINE_REGISTRY (and DB_IMAGE) and re-run."
   done
   ok "Images ready"
 
