@@ -221,6 +221,22 @@ If image pulls are blocked, pull from a mirror instead:
 FLUXLINE_REGISTRY=registry.example.com/fluxline ./setup-podman.sh
 ```
 
+## Supported versions
+
+The script checks the engine before starting and tells you if it's too old.
+
+| Engine | Supported | Tested | Older releases |
+| --- | --- | --- | --- |
+| **Podman** | 5.x and 6.x; 4.9 also works | 4.9, 5.6, 5.8 (Linux, rootless); 5.6, 6.1 (macOS) | 4.0–4.8: a warning; 3.x and older: stops with a message |
+| **Docker** | 24 and newer | 28 (Docker Desktop, macOS) | 20–23: a warning; 19 and older: stops with a message |
+
+On macOS and Windows, the `podman` command and the Podman machine must be the same major version
+(both 5.x, or both 6.x). If they aren't, containers start but can't be reached, so the script stops
+and tells you to update Podman and recreate the machine (`podman machine rm`, then
+`podman machine init`).
+
+Starting the script with `sh setup-podman.sh` works too; it runs itself under bash.
+
 ## Podman notes
 
 - Runs rootless: nothing uses `sudo`, containers run as your own user, and files the agent writes in

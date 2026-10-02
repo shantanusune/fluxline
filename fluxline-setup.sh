@@ -35,8 +35,14 @@
 # actually use. Under rootless Podman this grants nothing beyond what your own user already has.
 set -euo pipefail
 
-RUNTIME="${1:-}"
-shift || true
+# FLUXLINE_SETUP_LIB=1: only define the functions (tests source this file).
+if [ "${FLUXLINE_SETUP_LIB:-}" = 1 ]; then
+  RUNTIME=podman
+  set -- up
+else
+  RUNTIME="${1:-}"
+  shift || true
+fi
 case "${RUNTIME}" in
   docker | podman) ;;
   *)
@@ -165,6 +171,65 @@ agent_up() { case "$(http_code "http://127.0.0.1:${AGENT_PORT}/runtime")" in 200
 ui_ready() { curl -sf --max-time 5 "http://127.0.0.1:${UI_PORT}/api/auth/bootstrap" | grep -q '"needsBootstrap":false'; }
 stack_ready() { ui_ready && agent_up; }
 
+# --- engine versions ---------------------------------------------------------------------------
+# Tested: Podman 4.9, 5.x (5.6, 5.8) and 6.x (6.1); Docker 24 and newer. Keep in step with the
+# "Supported versions" table in README.md and deploy/setup/tests/engine-matrix.sh.
+PODMAN_OLDEST_TESTED="4.9"
+DOCKER_OLDEST_TESTED="24"
+
+version_major() { printf '%s' "${1%%.*}"; }
+version_minor() { local rest="${1#*.}"; printf '%s' "${rest%%.*}"; }
+is_number() { case "$1" in '' | *[!0-9]*) return 1 ;; *) return 0 ;; esac; }
+
+# engine_support ENGINE VERSION → "supported", "warn:<why>" or "refuse:<why>"
+engine_support() {
+  local engine="$1" version="$2" major minor
+  major="$(version_major "${version}")"
+  minor="$(version_minor "${version}")"
+  is_number "${major}" || { echo "warn:couldn't read the ${engine} version (${version:-empty})"; return 0; }
+  is_number "${minor}" || minor=0
+  case "${engine}" in
+    podman)
+      if [ "${major}" -lt 4 ]; then
+        echo "refuse:Podman ${version} is too old. Install Podman 5 or newer (4.9 is the oldest that works)."
+      elif [ "${major}" -eq 4 ] && [ "${minor}" -lt 9 ]; then
+        echo "warn:Podman ${version} is older than the oldest tested release (${PODMAN_OLDEST_TESTED}); if anything fails, update Podman."
+      else
+        echo supported
+      fi
+      ;;
+    docker)
+      if [ "${major}" -lt 20 ]; then
+        echo "refuse:Docker ${version} is too old. Install Docker ${DOCKER_OLDEST_TESTED} or newer."
+      elif [ "${major}" -lt "${DOCKER_OLDEST_TESTED}" ]; then
+        echo "warn:Docker ${version} is older than the oldest tested release (${DOCKER_OLDEST_TESTED}); if anything fails, update Docker."
+      else
+        echo supported
+      fi
+      ;;
+  esac
+}
+
+# podman_pair_support CLIENT SERVER → a podman command and a Podman machine of different major
+# versions disagree on how ports are forwarded (containers start but are unreachable).
+podman_pair_support() {
+  local client="$1" server="$2"
+  [ -n "${server}" ] || { echo supported; return 0; }
+  if [ "$(version_major "${client}")" != "$(version_major "${server}")" ]; then
+    echo "refuse:Your podman command is ${client} but the Podman machine runs ${server}. Use the same major version for both: update Podman, then recreate the machine (podman machine rm, podman machine init)."
+  else
+    echo supported
+  fi
+}
+
+# apply_support "<engine_support output>" — prints the warning or stops the setup.
+apply_support() {
+  case "$1" in
+    refuse:*) die "${1#refuse:}" ;;
+    warn:*) warn "${1#warn:}" ;;
+  esac
+}
+
 # --- engine checks -----------------------------------------------------------------------------
 SOCKET_CANDIDATES=()
 ENGINE_SOCKET=""
@@ -175,7 +240,10 @@ check_docker() {
     die "docker isn't installed. Install Docker Desktop (macOS/Windows) or Docker Engine (Linux), or use setup-podman.sh."
   docker info >/dev/null 2>&1 ||
     die "Docker is installed but not running. Start Docker Desktop (Linux: start the docker service) and re-run."
-  ok "Docker $(docker version --format '{{.Server.Version}}' 2>/dev/null) is running"
+  local version
+  version="$(docker version --format '{{.Server.Version}}' 2>/dev/null || true)"
+  apply_support "$(engine_support docker "${version}")"
+  ok "Docker ${version} is running"
   SOCKET_CANDIDATES=(/var/run/docker.sock)
   # Rootless Docker Engine serves its API from the user's own socket instead.
   if docker info --format '{{.SecurityOptions}}' 2>/dev/null | grep -q rootless; then
@@ -206,7 +274,7 @@ check_podman() {
     die "podman isn't installed. macOS/Windows: install Podman Desktop and let it install Podman. Linux: install the podman package."
   local version
   version="$(podman --version | awk '{print $NF}')"
-  case "${version}" in [0-3].*) die "Podman ${version} is too old; 4.0 or newer is needed." ;; esac
+  apply_support "$(engine_support podman "${version}")"
   ok "podman ${version} installed"
 
   # macOS and Windows run containers inside a Podman machine (a Linux VM). The default machine is
@@ -226,6 +294,14 @@ check_podman() {
   fi
 
   podman info >/dev/null 2>&1 || die "podman can't reach its engine: $(podman info 2>&1 | tail -1)"
+  # The engine itself (inside the Podman machine on macOS/Windows) can be another release.
+  local engine_version
+  engine_version="$(podman info --format '{{.Version.Version}}' 2>/dev/null || true)"
+  if [ -n "${engine_version}" ] && [ "${engine_version}" != "${version}" ]; then
+    apply_support "$(engine_support podman "${engine_version}")"
+    apply_support "$(podman_pair_support "${version}" "${engine_version}")"
+    ok "Podman engine ${engine_version}"
+  fi
   local rootless
   rootless="$(podman info --format '{{.Host.Security.Rootless}}' 2>/dev/null || echo unknown)"
   [ "${rootless}" = true ] && ok "Rootless mode: containers run as your own user"
@@ -323,6 +399,11 @@ action_status() {
   UI_PORT="${UI_PORT:-3000}"
   AGENT_PORT="${AGENT_PORT:-3400}"
   step "Fluxline (${RUNTIME})"
+  if [ "${RUNTIME}" = podman ]; then
+    echo "  podman $(podman --version | awk '{print $NF}'), engine $(podman info --format '{{.Version.Version}}' 2>/dev/null || echo unreachable)"
+  else
+    echo "  Docker $(docker version --format '{{.Server.Version}}' 2>/dev/null || echo unreachable)"
+  fi
   if ! exists "${CONTAINER}"; then
     warn "No ${CONTAINER} container. Start it with: ${SELF}"
     return 0
@@ -576,4 +657,4 @@ action_up() {
   echo "  ${DIM}Status: ${SELF} status   Logs: ${RUNTIME} logs -f ${CONTAINER}   Stop: ${SELF} down${RESET}"
 }
 
-"action_${ACTION}"
+[ "${FLUXLINE_SETUP_LIB:-}" = 1 ] || "action_${ACTION}"
