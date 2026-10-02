@@ -7,7 +7,7 @@ work, has a coding agent (VS Code with Copilot Chat, Claude or Codex) implement 
 repositories, runs your builds and tests, and stops for your approval before anything is published
 as a pull request.
 
-![A task waiting for approval: every stage of the delivery pipeline is done](docs/images/12-pipeline.png)
+![Fluxline in 45 seconds: sign in, create a workspace, turn on a coding agent, add a Git host, start a task, review it, approve it](docs/fluxline-walkthrough.gif)
 
 ## Start it
 
@@ -39,106 +39,30 @@ When it finishes it prints the address and your login:
 
 ## Walkthrough
 
-From sign-in to an approved change, in the order you'll meet each screen.
+The animation at the top shows the whole path. In words:
 
-### 1. Sign in
+1. **Sign in** with the address and login the script printed. More people can be added under
+   **Administration → Users**.
+2. **Create a workspace.** The folder you gave the script is already one. To add another, open
+   **Configuration → Workspace → Create new workspace**: a folder the agent can see, or
+   repositories checked out from GitHub, GitLab or Bitbucket. Switch it to **Active**.
+3. **Turn on a coding agent** under **Configuration → Agents**: VS Code (Copilot Chat), Claude or
+   Codex. Paste an API key for Claude or Codex; VS Code is found automatically. **Mock** needs
+   nothing and is handy for a first try.
+4. **Add your Git host** under **Configuration → Credentials**: a personal access token for
+   GitHub, GitLab or Bitbucket, used to check out repositories and open pull requests.
+5. **Start a task** with **+ New change**: a title, a description and acceptance criteria.
+6. **Review the requirement.** Fluxline reads it against your code and offers clearer versions;
+   pick one and continue.
+7. **Follow the pipeline**: Analyze → Plan → Implement → Verify → Publish → Approve. Verify runs
+   each repository's tests, found from its build files (`mvn test`, `gradle test`, `npm test`,
+   `go test`, `cargo test`). Every tab has **Download**, and **Download all** saves every stage's
+   artifacts in one archive.
+8. **Approve.** **Approve & merge** approves exactly the commits shown; **Send back** returns the
+   task to the agent with your comment.
 
-Open the address the script printed and sign in with the login it gave you. More people can be
-added later under **Administration → Users**.
-
-![Sign-in page](docs/images/01-sign-in.png)
-
-### 2. Your workspace is ready
-
-The folder you gave the script is already the active workspace, shown at the top left. Each
-repository inside it is found automatically.
-
-![Workspaces page with the payments-api workspace active](docs/images/02-workspace.png)
-
-To add another, go to **Configuration → Workspace → Create new workspace** and pick where the code
-comes from: a folder the agent can already see, or repositories checked out from GitHub, GitLab or
-Bitbucket.
-
-![Choosing between a local workspace and checking out repositories](docs/images/03-new-workspace.png)
-
-For a local workspace, give it a name and the folder's path, then **Create workspace** and switch it
-to **Active**.
-
-![The local workspace form](docs/images/04-workspace-form.png)
-
-### 3. Add your Git host
-
-Under **Configuration → Credentials**, add a personal access token for GitHub, GitLab or
-Bitbucket, then **Test connection** and **Save**. Fluxline uses it to check out repositories and
-open pull requests; it picks the token that matches each repository's host. You can do this before
-creating any workspace.
-
-![Credentials page with GitHub and GitLab cards](docs/images/05-credentials.png)
-
-### 4. Choose your coding agent
-
-Under **Configuration → Agents**, switch on the agents you want to use. For Claude or Codex, paste
-an API key and **Save**; the agent checks it straight away.
-
-![Claude card with the API key field](docs/images/06-agents-api-key.png)
-
-For VS Code, keep a VS Code window open with Copilot Chat signed in. The script installs the
-bridge extension, and **Automatic** finds it on its own.
-
-![VS Code Bridge card with the Automatic connection selected](docs/images/07-agents-vscode.png)
-
-### 5. Shape how the agent works (optional)
-
-**Configuration → Context design** holds reusable instructions for the coding agent. Start from
-the built-in ones, upload your own `.md` files, or generate them from your code.
-
-![Component library](docs/images/08-context-library.png)
-
-On the **Flows** tab, drag steps onto the canvas and connect them to set the order the agent
-follows. Publishing writes them into your repositories as skill files the agent reads.
-
-![Flow designer with a Java (Maven) starter flow](docs/images/09-flow-designer.png)
-
-### 6. Start a task
-
-Click **+ New change**. Give it a title, a description and acceptance criteria (one per line),
-pick the coding agent under **Provider**, and **Start task**.
-
-![New change form](docs/images/10-new-change.png)
-
-### 7. Review the requirement
-
-Fluxline reads the request against your code, shows the likely impact, and offers clearer
-versions. Pick one and **Continue with selected**, or ask for another round with
-**Refine & regenerate**.
-
-![Requirement review with Continue, Refine and Reject](docs/images/11-review-requirement.png)
-
-### 8. Follow the pipeline
-
-The task moves through **Analyze → Plan → Implement → Verify → Publish → Approve**. Each tab
-shows what happened at that stage, and the Logs tab follows the agent live. **Verify** runs each
-repository's tests, found from its build files (`mvn test`, `gradle test`, `npm test`,
-`go test`, `cargo test`).
-
-![Delivery pipeline with every stage done up to Approve](docs/images/12-pipeline.png)
-
-The **Plan** tab holds the agent's change plan. **Download** saves the current tab;
-**Download all** saves every stage's artifacts for this task in one archive.
-
-![Plan tab with Download and Download all](docs/images/13-plan.png)
-
-The **Changes** tab lists the changed files per repository. From there you can open the folder,
-check the branch out locally or create the pull request.
-
-![Changes tab with changed files and the pull request](docs/images/14-changes.png)
-
-### 9. Approve
-
-When checks pass, the task waits for you. **Approve & merge** approves exactly the commits shown;
-any new commit invalidates the approval. **Send back** returns it to the agent with your comment.
-
-![Approval card with Approve & merge and Send back](docs/images/15-approval.png)
+**Context design** (under Configuration) is optional: reusable instructions and a drag-and-drop
+flow that publish skill files into your repositories for the coding agent to follow.
 
 ## What the script does
 
@@ -227,7 +151,7 @@ The script checks the engine before starting and tells you if it's too old.
 
 | Engine | Supported | Tested | Older releases |
 | --- | --- | --- | --- |
-| **Podman** | 5.x and 6.x; 4.9 also works | 4.9, 5.6, 5.8 (Linux, rootless); 5.6, 6.1 (macOS) | 4.0–4.8: a warning; 3.x and older: stops with a message |
+| **Podman** | 5.x and 6.x; 4.9 also works | 4.9, 5.6, 5.8 (Linux, rootless); 5.5, 5.6, 6.1 (macOS) | 4.0–4.8: a warning; 3.x and older: stops with a message |
 | **Docker** | 24 and newer | 28 (Docker Desktop, macOS) | 20–23: a warning; 19 and older: stops with a message |
 
 On macOS and Windows, the `podman` command and the Podman machine must be the same major version
@@ -267,6 +191,7 @@ Starting the script with `sh setup-podman.sh` works too; it runs itself under ba
 | `Couldn't pull …` | Pull from a mirror: set `FLUXLINE_REGISTRY` (see [Behind a proxy](#behind-a-proxy)). |
 | `fluxline-data already has an account, and its password isn't in …` | `~/.fluxline/setup.env` was removed. Sign in with the password you chose, or start fresh with `podman volume rm fluxline-data fluxline-postgres`. |
 | A port is already in use | `UI_PORT=3100 AGENT_PORT=3500 ./setup-podman.sh` |
+| The `fluxline` container keeps restarting | `podman logs --tail 80 fluxline` (or `docker logs`): the last `[entrypoint]` line names the service that stopped and its exit code. Re-run the script to get the latest image. |
 
 ## Images
 
@@ -281,7 +206,10 @@ image with `-e FLUXLINE_MODE=agent` (or `--remote`, above).
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+[PolyForm Noncommercial 1.0.0](LICENSE): free for personal use and other noncommercial
+purposes (study, research, hobby projects, charities, schools, public bodies). Commercial use
+needs a separate license from the author. The `fluxline-standalone` images are licensed the same
+way.
 
 ---
 
