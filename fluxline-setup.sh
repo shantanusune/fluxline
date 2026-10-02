@@ -15,6 +15,7 @@
 #   FLUXLINE_REGISTRY   where the image comes from (default docker.io/suneshantanu), for a mirror
 #   FLUXLINE_IMAGE      run this exact image (e.g. a local test build)
 #   FLUXLINE_PULL=0     use the image already on this machine instead of pulling (local testing)
+#   FLUXLINE_DEBUG=1    print the exact container command (no secret values)
 #   UI_PORT, AGENT_PORT host ports (default 3000, 3400)
 #   ADMIN_EMAIL, ADMIN_PASSWORD, OPENAI_API_KEY, FLUXLINE_TOOLCHAIN=0 (never mount the engine socket),
 #   FLUXLINE_VSCODE=0   don't install the VS Code bridge extension
@@ -423,6 +424,12 @@ action_status() {
     return 0
   fi
   rt ps -a --filter "name=^${CONTAINER}\$" --format '{{.Names}}  {{.Status}}  {{.Ports}}' | sed 's/^/  /'
+  local restarts
+  restarts="$(rt inspect "${CONTAINER}" --format '{{.RestartCount}}' 2>/dev/null || echo 0)"
+  if [ "${restarts:-0}" != 0 ]; then
+    warn "${CONTAINER} has restarted ${restarts} time(s). Its last log lines:"
+    rt logs --tail 15 "${CONTAINER}" 2>&1 | sed 's/^/    /'
+  fi
   if agent_up; then ok "Agent API answers on :${AGENT_PORT}"; else warn "Agent API isn't answering on :${AGENT_PORT}"; fi
   if [ -z "${REMOTE_UI_URL:-}" ]; then
     if [ "$(http_code "http://127.0.0.1:${UI_PORT}/health")" = 200 ]; then
@@ -518,6 +525,10 @@ start_container() {
     args+=(-v "${ENGINE_SOCKET}:/var/run/docker.sock" -e AI_SDLC_CONTAINER_ID="${CONTAINER}")
   fi
   if [ "${#EXTRA_ARGS[@]}" -gt 0 ]; then args+=("${EXTRA_ARGS[@]}"); fi
+  if [ "${FLUXLINE_DEBUG:-}" = 1 ]; then
+    # Secrets are passed as bare `-e NAME`, so this prints no values.
+    printf '  %s' "${RUNTIME} run"; printf ' %q' "${args[@]}" "${image}"; echo
+  fi
   ADMIN_EMAIL="${ADMIN_EMAIL}" ADMIN_PASSWORD="${ADMIN_PASSWORD}" \
     AI_SDLC_API_TOKEN="${AGENT_API_TOKEN}" AI_SDLC_AGENT_TOKEN="${REMOTE_AGENT_TOKEN:-}" \
     ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}" OPENAI_API_KEY="${OPENAI_API_KEY:-}" \
