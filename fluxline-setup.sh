@@ -185,6 +185,16 @@ check_docker() {
   fi
 }
 
+# wait_for_socket PATH — up to 10 seconds for a just-started service to create its socket.
+wait_for_socket() {
+  local tries=0
+  until [ -S "$1" ]; do
+    tries=$((tries + 1))
+    [ "${tries}" -gt 20 ] && return 1
+    sleep 0.5
+  done
+}
+
 podman_socket_path() {
   local path
   path="$(podman info --format '{{.Host.RemoteSocket.Path}}' 2>/dev/null || true)"
@@ -222,17 +232,21 @@ check_podman() {
 
   local path
   path="$(podman_socket_path)"
-  # On Linux the API socket is a separate service. Rootless needs no sudo to start it.
-  if [ "${OS}" = Linux ] && [ "$(podman info --format '{{.Host.RemoteSocket.Exists}}' 2>/dev/null)" != true ]; then
+  # On Linux the API socket is a separate service. Rootless needs no sudo to start it. Look for
+  # the socket file itself: Podman 5.x reports RemoteSocket.Exists=true even when nothing listens.
+  if [ "${OS}" = Linux ] && [ -n "${path}" ] && [ ! -S "${path}" ]; then
     if [ "${rootless}" = true ]; then
-      if systemctl --user enable --now podman.socket >/dev/null 2>&1; then
+      if systemctl --user enable --now podman.socket >/dev/null 2>&1 && wait_for_socket "${path}"; then
         ok "Started your user's Podman API socket (systemctl --user podman.socket)"
       else
         # No systemd user session: serve it from a background process.
         mkdir -p "$(dirname "${path}")"
         nohup podman system service --time=0 "unix://${path}" >/dev/null 2>&1 &
-        sleep 1
-        ok "Started a Podman API service in the background (it stops when you log out)"
+        if wait_for_socket "${path}"; then
+          ok "Started a Podman API service in the background (it stops when you log out)"
+        else
+          warn "Couldn't start Podman's API socket at ${path}; build/test checks will run inside the container."
+        fi
       fi
     else
       warn "Podman's API socket (${path}) isn't running and starting it needs root."
