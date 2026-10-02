@@ -7,6 +7,8 @@ work, has a coding agent (VS Code with Copilot Chat, Claude or Codex) implement 
 repositories, runs your builds and tests, and stops for your approval before anything is published
 as a pull request.
 
+![A task waiting for approval: every stage of the delivery pipeline is done](docs/images/12-pipeline.png)
+
 ## Start it
 
 One command. It asks for your code folder and, optionally, an Anthropic API key; everything else
@@ -31,12 +33,112 @@ When it finishes it prints the address and your login:
 ```text
 ==> Ready
   Open:         http://localhost:3000
-  Sign in:      admin@localhost.com  /  lNHLVgHDuV8nliUO
+  Sign in:      admin@localhost.com  /  <generated password>
   Coding agent: VS Code, Claude (pick one in + New change)
 ```
 
-Sign in with that login and click **+ New change**: the agent is already connected and your code
-folder is the active workspace.
+## Walkthrough
+
+From sign-in to an approved change, in the order you'll meet each screen.
+
+### 1. Sign in
+
+Open the address the script printed and sign in with the login it gave you. More people can be
+added later under **Administration → Users**.
+
+![Sign-in page](docs/images/01-sign-in.png)
+
+### 2. Your workspace is ready
+
+The folder you gave the script is already the active workspace, shown at the top left. Each
+repository inside it is found automatically.
+
+![Workspaces page with the payments-api workspace active](docs/images/02-workspace.png)
+
+To add another, go to **Configuration → Workspace → Create new workspace** and pick where the code
+comes from: a folder the agent can already see, or repositories checked out from GitHub, GitLab or
+Bitbucket.
+
+![Choosing between a local workspace and checking out repositories](docs/images/03-new-workspace.png)
+
+For a local workspace, give it a name and the folder's path, then **Create workspace** and switch it
+to **Active**.
+
+![The local workspace form](docs/images/04-workspace-form.png)
+
+### 3. Add your Git host
+
+Under **Configuration → Credentials**, add a personal access token for GitHub, GitLab or
+Bitbucket, then **Test connection** and **Save**. Fluxline uses it to check out repositories and
+open pull requests; it picks the token that matches each repository's host. You can do this before
+creating any workspace.
+
+![Credentials page with GitHub and GitLab cards](docs/images/05-credentials.png)
+
+### 4. Choose your coding agent
+
+Under **Configuration → Agents**, switch on the agents you want to use. For Claude or Codex, paste
+an API key and **Save**; the agent checks it straight away.
+
+![Claude card with the API key field](docs/images/06-agents-api-key.png)
+
+For VS Code, keep a VS Code window open with Copilot Chat signed in. The script installs the
+bridge extension, and **Automatic** finds it on its own.
+
+![VS Code Bridge card with the Automatic connection selected](docs/images/07-agents-vscode.png)
+
+### 5. Shape how the agent works (optional)
+
+**Configuration → Context design** holds reusable instructions for the coding agent. Start from
+the built-in ones, upload your own `.md` files, or generate them from your code.
+
+![Component library](docs/images/08-context-library.png)
+
+On the **Flows** tab, drag steps onto the canvas and connect them to set the order the agent
+follows. Publishing writes them into your repositories as skill files the agent reads.
+
+![Flow designer with a Java (Maven) starter flow](docs/images/09-flow-designer.png)
+
+### 6. Start a task
+
+Click **+ New change**. Give it a title, a description and acceptance criteria (one per line),
+pick the coding agent under **Provider**, and **Start task**.
+
+![New change form](docs/images/10-new-change.png)
+
+### 7. Review the requirement
+
+Fluxline reads the request against your code, shows the likely impact, and offers clearer
+versions. Pick one and **Continue with selected**, or ask for another round with
+**Refine & regenerate**.
+
+![Requirement review with Continue, Refine and Reject](docs/images/11-review-requirement.png)
+
+### 8. Follow the pipeline
+
+The task moves through **Analyze → Plan → Implement → Verify → Publish → Approve**. Each tab
+shows what happened at that stage, and the Logs tab follows the agent live. **Verify** runs each
+repository's tests, found from its build files (`mvn test`, `gradle test`, `npm test`,
+`go test`, `cargo test`).
+
+![Delivery pipeline with every stage done up to Approve](docs/images/12-pipeline.png)
+
+The **Plan** tab holds the agent's change plan. **Download** saves the current tab;
+**Download all** saves every stage's artifacts for this task in one archive.
+
+![Plan tab with Download and Download all](docs/images/13-plan.png)
+
+The **Changes** tab lists the changed files per repository. From there you can open the folder,
+check the branch out locally or create the pull request.
+
+![Changes tab with changed files and the pull request](docs/images/14-changes.png)
+
+### 9. Approve
+
+When checks pass, the task waits for you. **Approve & merge** approves exactly the commits shown;
+any new commit invalidates the approval. **Send back** returns it to the agent with your comment.
+
+![Approval card with Approve & merge and Send back](docs/images/15-approval.png)
 
 ## What the script does
 
