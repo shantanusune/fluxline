@@ -337,11 +337,25 @@ check_podman() {
   EXTRA_ARGS+=(--security-opt label=disable)
 }
 
+# The architecture containers run on, as the engine reports it (Podman: arm64/amd64, Docker:
+# aarch64/x86_64). The shell's own `uname -m` can differ: a Rosetta terminal on Apple Silicon
+# says x86_64, which would pull the amd64 image into an arm64 engine to run under emulation.
+engine_arch() {
+  if [ "${RUNTIME}" = podman ]; then
+    podman info --format '{{.Host.Arch}}' 2>/dev/null || true
+  else
+    docker info --format '{{.Architecture}}' 2>/dev/null || true
+  fi
+}
+
 image_tag() {
-  case "$(uname -m)" in
+  local arch
+  arch="$(engine_arch)"
+  [ -n "${arch}" ] || arch="$(uname -m)"
+  case "${arch}" in
     arm64 | aarch64) echo arm64 ;;
     x86_64 | amd64) echo amd64 ;;
-    *) die "Unsupported CPU architecture: $(uname -m) (images exist for arm64 and amd64)." ;;
+    *) die "Unsupported CPU architecture: ${arch} (images exist for arm64 and amd64)." ;;
   esac
 }
 
