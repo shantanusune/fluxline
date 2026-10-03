@@ -121,9 +121,14 @@ The app and the script do the same:
 3. **Pulls one image**, `fluxline-standalone`, and starts it as one container, `fluxline`, with
    the UI, the agent and its Postgres database inside.
 4. **Signs you up.** The first start creates the admin account and connects the UI to the agent.
-5. **Sets up build/test containers.** Builds and tests run in their own toolchain containers
-   (Maven, Gradle, Node, Go, Python, Rust). The script finds an engine socket the agent can use and
-   checks it actually works; if none does, checks run inside the agent instead.
+5. **Sets up build/test containers.** Builds and tests run in their own toolchain containers (Maven,
+   Gradle, Node, Go, Python, Rust). The script finds an engine socket the agent can use and checks
+   it actually works; if none does, checks run inside the agent instead. Each workspace gets one
+   long-running toolchain container per toolchain it needs (for example Gradle on JDK 21), shared by
+   every task: builds stay warm and dependencies download once. Tasks queue for it unless they work
+   in separate copies. Fluxline prepares these in the background when it starts (turn off with
+   `FLUXLINE_TOOLCHAIN_PREPARE=0`), and stops them when it stops; **Configuration → Workspace →
+   Toolchains** shows them.
 6. **Installs the VS Code bridge extension** when the `code` command is available. The agent
    finds VS Code by itself; reload open VS Code windows once.
 
@@ -184,6 +189,7 @@ Set any of these before running the script, for example
 | `FLUXLINE_REGISTRY` | `docker.io/suneshantanu` | Pull the Fluxline image from another registry, such as a mirror. |
 | `FLUXLINE_TOOLCHAIN=0` | on | Never give the container the engine socket; checks run inside it. |
 | `FLUXLINE_VSCODE=0` | on | Don't install the VS Code bridge extension. |
+| `FLUXLINE_TOOLCHAIN_PREPARE=0` | on | Don't prepare the toolchain containers in the background at start. |
 | `FLUXLINE_NAME` | `fluxline` | Name of the container and prefix of its volumes, to run a second, separate copy. |
 
 ### Agent and UI settings
@@ -204,6 +210,7 @@ them, `--set KEY=value` changes one, `--unset KEY` returns it to the default.
 | `AI_SDLC_GIT_USER_NAME`, `AI_SDLC_GIT_USER_EMAIL` | from your Git settings | Commit author in task working copies. |
 | `AI_SDLC_DEPENDENCY_POLLER_ENABLED`, `_INTERVAL_SECONDS` | on, 60 | Dependency (vulnerability) checks. |
 | `AI_SDLC_CLUSTER_SECTION_CONCURRENCY`, `AI_SDLC_CLUSTER_SECTION_TIMEOUT_SECONDS` | 1, 900 | Workspace scan: cluster instructions written at once, time per section. |
+| `AI_SDLC_TOOLCHAIN_PREPARE`, `AI_SDLC_TOOLCHAIN_MAX_PARALLEL`, `AI_SDLC_TOOLCHAIN_PREPARE_CONCURRENCY` | on, 1, 2 | Toolchain containers: prepare in the background, builds at once per container (they share its network: raise only if your tests don't start servers on fixed ports), containers prepared at once. |
 | `AI_SDLC_SVN_ENABLED` | off | Workspaces with Subversion repositories. |
 | `AI_SDLC_ARTIFACTORY_URL`, `AI_SDLC_ARTIFACTORY_TOKEN` | none | Package mirror for dependency upgrades. |
 | `LOCAL_DEV` | on | Turn off when Fluxline is served over HTTPS (secure sign-in cookie). |

@@ -21,6 +21,7 @@
 #   UI_PORT, AGENT_PORT host ports (default 3000, 3400)
 #   ADMIN_EMAIL, ADMIN_PASSWORD, OPENAI_API_KEY, FLUXLINE_TOOLCHAIN=0 (never mount the engine socket),
 #   FLUXLINE_VSCODE=0   don't install the VS Code bridge extension
+#   FLUXLINE_TOOLCHAIN_PREPARE=0  don't prepare the toolchain containers in the background at start
 #   FLUXLINE_NAME       name of the container and prefix of its volumes (default fluxline), e.g. to
 #                       run a second, separate copy; FLUXLINE_HOME moves the saved answers
 #
@@ -194,6 +195,30 @@ load_container_env() {
     eval "export ${line}"
     CONTAINER_ENV_KEYS+=("${key}")
   done <"${CONTAINER_ENV_FILE}"
+}
+
+# instance_label <container name> — the fluxline.toolbox label value of that Fluxline's toolchain
+# containers, written the way the agent writes it (lower case, dashes, at most 30 characters).
+instance_label() {
+  local slug
+  slug="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' | cut -c1-30)"
+  printf '%s' "${slug%-}" | sed 's/^$/fluxline/'
+}
+
+# toolchain_env_args — `-e` options for the Fluxline container about its toolchain containers.
+toolchain_env_args() {
+  printf '%s' "-e FLUXLINE_INSTANCE=${CONTAINER}"
+  if [ "${FLUXLINE_TOOLCHAIN_PREPARE:-1}" = 0 ]; then printf ' %s' "-e AI_SDLC_TOOLCHAIN_PREPARE=off"; fi
+}
+
+# This Fluxline's toolchain containers (running, or all with -a).
+toolchain_containers() {
+  rt ps ${1:+"$1"} -q --filter "label=fluxline.toolbox=$(instance_label "${CONTAINER}")" 2>/dev/null || true
+}
+
+# Each Gradle toolchain container's own Gradle home volume (removed with --clean).
+toolchain_volumes() {
+  rt volume ls -q --filter "name=fluxline-tools-$(instance_label "${CONTAINER}")-" 2>/dev/null || true
 }
 
 # HTTP status of a URL on this machine, or 000 when nothing answers. --noproxy: a proxy set in
@@ -503,7 +528,13 @@ fluxline_containers() {
 # Stops and removes every Fluxline container still around, so ports and names are free. Volumes
 # (the data) stay unless --clean.
 stop_running() {
-  local names
+  local names boxes
+  # Toolchain containers are stopped, not removed: they start again with Fluxline, still warm.
+  boxes="$(toolchain_containers | tr '\n' ' ')"
+  if [ -n "${boxes// /}" ]; then
+    # shellcheck disable=SC2086 # container ids
+    rt stop -t 5 ${boxes} >/dev/null 2>&1 && ok "stopped the toolchain containers"
+  fi
   names="$(fluxline_containers | tr '\n' ' ')"
   [ -n "${names// /}" ] || return 0
   step "Stopping the running Fluxline"
@@ -536,6 +567,15 @@ clean_everything() {
   echo "  Your code folder, ~/fluxline-repos and VS Code settings are not touched."
   confirm_destructive "Delete all of this?" || die "Nothing was deleted."
   stop_running
+  local boxes
+  boxes="$(toolchain_containers -a | tr '\n' ' ')"
+  if [ -n "${boxes// /}" ]; then
+    # shellcheck disable=SC2086 # container ids
+    rt rm -f ${boxes} >/dev/null 2>&1 && ok "removed the toolchain containers"
+  fi
+  for volume in $(toolchain_volumes); do
+    rt volume rm -f "${volume}" >/dev/null 2>&1 && ok "removed volume ${volume}"
+  done
   for volume in ${volumes[@]+"${volumes[@]}"}; do
     rt volume rm -f "${volume}" >/dev/null 2>&1 && ok "removed volume ${volume}"
   done
@@ -552,6 +592,8 @@ start_container() {
     -p "${AGENT_PORT}:3400"
     -v "${DATA_VOLUME}:/data"
   )
+  # shellcheck disable=SC2207 # simple words: the container name and fixed options
+  args+=($(toolchain_env_args))
   if [ -n "${REMOTE_UI_URL}" ]; then
     # Agent only. The hosted UI's page calls this agent from the browser, so its origin must be
     # allowed too.
