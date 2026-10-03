@@ -24,7 +24,7 @@ to install.
 | --- | --- |
 | macOS, Apple Silicon (M1–M4) | [Fluxline-macos-arm64.zip](https://github.com/shantanusune/fluxline/releases/latest/download/Fluxline-macos-arm64.zip) |
 | macOS, Intel | [Fluxline-macos-x64.zip](https://github.com/shantanusune/fluxline/releases/latest/download/Fluxline-macos-x64.zip) |
-| Windows | Coming soon; until then use the [script](#the-script) with Docker Desktop or Podman |
+| Windows, x64 | [Fluxline-windows-x64.zip](https://github.com/shantanusune/fluxline/releases/latest/download/Fluxline-windows-x64.zip) |
 | Linux, x64 | [Fluxline-linux-x64.tar.gz](https://github.com/shantanusune/fluxline/releases/latest/download/Fluxline-linux-x64.tar.gz) |
 | Linux, ARM | [Fluxline-linux-arm64.tar.gz](https://github.com/shantanusune/fluxline/releases/latest/download/Fluxline-linux-arm64.tar.gz) |
 
@@ -105,7 +105,10 @@ The animation at the top shows the whole path. In words:
    task to the agent with your comment.
 
 **Context design** (under Configuration) is optional: reusable instructions and a drag-and-drop
-flow that publish skill files into your repositories for the coding agent to follow.
+flow that publish skill files into your repositories for the coding agent to follow. **Scan
+workspace** (Clusters) runs in the background: it groups your repositories by their build files
+within seconds, then writes each group's starting instructions. You can leave the page or reload;
+after a restart, **Resume** carries on where it stopped.
 
 ## What setup does
 
@@ -162,7 +165,7 @@ containers using Fluxline's ports) and `--use-proxy`. `--help` lists them all.
 
 | Agent | What you need |
 | --- | --- |
-| **VS Code** (Copilot Chat) | VS Code with GitHub Copilot Chat signed in. The script installs the bridge extension; keep a VS Code window open. |
+| **VS Code** (Copilot Chat) | VS Code with GitHub Copilot Chat signed in. The script installs the bridge extension; keep a VS Code window open. With **Auto-switch models** on (VS Code card), a busy or rate-limited model hands the task to the next one, and if all are busy the task waits and retries by itself instead of asking you. |
 | **Claude** | An Anthropic API key, entered when the script asks or later under **Configuration → Agents**. On macOS the Claude CLI keeps its login in the Keychain, which containers can't read, so a key is needed. |
 | **Codex** | `OPENAI_API_KEY` set before running the script, an API key added under **Configuration → Agents**, or an existing `codex login` (`~/.codex`), picked up automatically. |
 
@@ -200,6 +203,7 @@ them, `--set KEY=value` changes one, `--unset KEY` returns it to the default.
 | `AI_SDLC_DB_CHECKPOINT_POOL_MIN` / `_MAX` | 1 / 10 | The agent's pipeline-state pool. |
 | `AI_SDLC_GIT_USER_NAME`, `AI_SDLC_GIT_USER_EMAIL` | from your Git settings | Commit author in task working copies. |
 | `AI_SDLC_DEPENDENCY_POLLER_ENABLED`, `_INTERVAL_SECONDS` | on, 60 | Dependency (vulnerability) checks. |
+| `AI_SDLC_CLUSTER_SECTION_CONCURRENCY`, `AI_SDLC_CLUSTER_SECTION_TIMEOUT_SECONDS` | 1, 900 | Workspace scan: cluster instructions written at once, time per section. |
 | `AI_SDLC_SVN_ENABLED` | off | Workspaces with Subversion repositories. |
 | `AI_SDLC_ARTIFACTORY_URL`, `AI_SDLC_ARTIFACTORY_TOKEN` | none | Package mirror for dependency upgrades. |
 | `LOCAL_DEV` | on | Turn off when Fluxline is served over HTTPS (secure sign-in cookie). |
