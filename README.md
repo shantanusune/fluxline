@@ -11,6 +11,47 @@ as a pull request.
 
 ## Start it
 
+You need [Docker Desktop](https://www.docker.com/products/docker-desktop/) or
+[Podman](https://podman-desktop.io/downloads) installed. Then use the Fluxline app (easiest) or the
+one-line script.
+
+### The app
+
+Download it for your computer. It includes everything it needs (Java included); there is nothing
+to install.
+
+| Computer | Download |
+| --- | --- |
+| macOS, Apple Silicon (M1–M4) | [Fluxline-macos-arm64.zip](https://github.com/shantanusune/fluxline/releases/latest/download/Fluxline-macos-arm64.zip) |
+| macOS, Intel | [Fluxline-macos-x64.zip](https://github.com/shantanusune/fluxline/releases/latest/download/Fluxline-macos-x64.zip) |
+| Windows | Coming soon; until then use the [script](#the-script) with Docker Desktop or Podman |
+| Linux, x64 | [Fluxline-linux-x64.tar.gz](https://github.com/shantanusune/fluxline/releases/latest/download/Fluxline-linux-x64.tar.gz) |
+| Linux, ARM | [Fluxline-linux-arm64.tar.gz](https://github.com/shantanusune/fluxline/releases/latest/download/Fluxline-linux-arm64.tar.gz) |
+
+All versions: [Releases](https://github.com/shantanusune/fluxline/releases).
+
+Unzip it and open **Fluxline**. The app isn't signed yet, so the first time:
+
+- **macOS:** right-click **Fluxline** → **Open** → **Open**. (Or run
+  `xattr -dr com.apple.quarantine Fluxline.app` once.)
+- **Windows:** if SmartScreen appears, **More info** → **Run anyway**.
+- **Linux:** run `Fluxline/bin/Fluxline`.
+
+It finds Docker or Podman, asks for your code folder and an optional Anthropic API key, shows each
+step as it runs, and ends on a dashboard with the address, your login, and Stop, Restart, Logs and
+Clean start. It also:
+
+- keeps your terminal's or computer's proxy out of Fluxline (tick **Use this computer's proxy** in
+  Advanced options if Fluxline needs it to reach the internet);
+- removes invisible characters from pasted keys and folders;
+- restarts a Podman machine that says it's running but doesn't answer;
+- names any container already using Fluxline's ports, and can stop it for you (**Force stop and
+  retry**).
+
+The app and the script share the same settings, container and data, so you can switch between them.
+
+### The script
+
 One command. It asks for your code folder and, optionally, an Anthropic API key; everything else
 is set up for you.
 
@@ -28,7 +69,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/shantanusune/fluxline/main/s
 
 Or clone this repository and run `./setup-podman.sh` or `./setup-docker.sh`.
 
-When it finishes it prints the address and your login:
+When it finishes it prints the address and your login (the app shows the same on its dashboard):
 
 ```text
 ==> Ready
@@ -41,7 +82,7 @@ When it finishes it prints the address and your login:
 
 The animation at the top shows the whole path. In words:
 
-1. **Sign in** with the address and login the script printed. More people can be added under
+1. **Sign in** with the address and login the app or the script showed. More people can be added under
    **Administration → Users**.
 2. **Create a workspace.** The folder you gave the script is already one. To add another, open
    **Configuration → Workspace → Create new workspace**: a folder the agent can see, or
@@ -64,7 +105,9 @@ The animation at the top shows the whole path. In words:
 **Context design** (under Configuration) is optional: reusable instructions and a drag-and-drop
 flow that publish skill files into your repositories for the coding agent to follow.
 
-## What the script does
+## What setup does
+
+The app and the script do the same:
 
 1. **Checks the engine.** For Podman on macOS or Windows it creates and starts a Podman machine if
    there isn't one. On Linux it starts your user's Podman API service.
@@ -104,6 +147,15 @@ Use `setup-docker.sh` in place of `setup-podman.sh` on Docker.
 Every run stops the Fluxline that's already running first (including containers from the earlier
 three-container setup), then starts the new one with the same data.
 
+The app takes the same commands from a terminal (useful on servers):
+
+| macOS | Windows | Linux |
+| --- | --- | --- |
+| `Fluxline.app/Contents/MacOS/Fluxline status` | `Fluxline\fluxline-cli.exe status` | `Fluxline/bin/Fluxline status` |
+
+with `up`, `status`, `down`, `--clean`, `--yes`, `--remote <address>`, plus `--force` (stop other
+containers using Fluxline's ports) and `--use-proxy`. `--help` lists them all.
+
 ## Coding agents
 
 | Agent | What you need |
@@ -131,10 +183,17 @@ Set any of these before running the script, for example
 
 ## Behind a proxy
 
-Fluxline works behind an HTTP proxy. The containers use your proxy settings for internet access
-(Podman passes them on automatically; with Docker, set them in Docker Desktop under
-**Settings → Resources → Proxies**). Connections between Fluxline and VS Code on your machine never
-go through the proxy.
+Fluxline works behind an HTTP proxy. Connections between Fluxline and VS Code on your machine never
+go through it.
+
+- **The app** keeps proxies out of the container by default, so a proxy set in a terminal can't
+  get in Fluxline's way. If Fluxline needs the proxy to reach the internet (coding agents, Git
+  hosts, Jira), tick **Use this computer's proxy** in Advanced options (`--use-proxy` on the
+  command line).
+- **The script** passes the engine's proxy settings on (Podman does so automatically; with Docker,
+  set them in Docker Desktop under **Settings → Resources → Proxies**).
+
+Image downloads use the engine's own proxy settings (Docker Desktop, or the Podman machine).
 
 If image pulls are blocked, pull from a mirror instead:
 
@@ -187,7 +246,9 @@ Starting the script with `sh setup-podman.sh` works too; it runs itself under ba
 | VS Code isn't listed as available | Open VS Code (the bridge starts with it), then use **Validate** on the VS Code card under **Configuration → Agents** in the UI. |
 | `Couldn't pull …` | Pull from a mirror: set `FLUXLINE_REGISTRY` (see [Behind a proxy](#behind-a-proxy)). |
 | `fluxline-data already has an account, and its password isn't in …` | `~/.fluxline/setup.env` was removed. Sign in with the password you chose, or start fresh with `podman volume rm fluxline-data fluxline-postgres`. |
-| A port is already in use | `UI_PORT=3100 AGENT_PORT=3500 ./setup-podman.sh` |
+| A port is already in use | The app names the container using it: **Force stop and retry** stops it (it isn't deleted). Or choose other ports: Advanced options in the app, or `UI_PORT=3100 AGENT_PORT=3500 ./setup-podman.sh`. |
+| `Cannot connect to Podman … connection refused` while `podman machine list` says running | The Podman machine's port forwarder has stopped. The app offers to restart the machine; otherwise run `podman machine stop`, then `podman machine start`, and start Fluxline again. Containers in the machine stop with it; start any others again with `podman start <name>`. |
+| macOS says the app "can't be opened" | It isn't signed yet: right-click → **Open**, or `xattr -dr com.apple.quarantine Fluxline.app`. |
 | The `fluxline` container keeps restarting | `podman logs --tail 80 fluxline` (or `docker logs`): the last `[entrypoint]` line names the service that stopped and its exit code. Re-run the script to get the latest image. |
 
 ## Images
