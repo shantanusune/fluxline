@@ -85,6 +85,8 @@ done
 SELF="${FLUXLINE_WRAPPER:-$0 ${RUNTIME}}"
 STATE_DIR="${FLUXLINE_HOME:-$HOME/.fluxline}"
 STATE_FILE="${STATE_DIR}/setup.env"
+# Agent and UI settings saved by the Fluxline launcher (Advanced options → Fluxline settings).
+CONTAINER_ENV_FILE="${STATE_DIR}/container.env"
 REGISTRY="${FLUXLINE_REGISTRY:-docker.io/suneshantanu}"
 NAME="${FLUXLINE_NAME:-fluxline}"
 CONTAINER="${NAME}"
@@ -177,6 +179,21 @@ load_state() {
     [ -n "${!key:-}" ] && continue # environment variables win over saved answers
     eval "${line}"
   done <"${STATE_FILE}"
+}
+
+# load_container_env — exports each KEY='value' line of container.env (written by the launcher,
+# which checked every value) and lists the names in CONTAINER_ENV_KEYS, for `-e NAME`.
+CONTAINER_ENV_KEYS=()
+load_container_env() {
+  [ -f "${CONTAINER_ENV_FILE}" ] || return 0
+  local line key
+  while IFS= read -r line; do
+    case "${line}" in '#'* | '') continue ;; esac
+    key="${line%%=*}"
+    case "${key}" in '' | [!A-Z]* | *[!A-Z0-9_]*) continue ;; esac
+    eval "export ${line}"
+    CONTAINER_ENV_KEYS+=("${key}")
+  done <"${CONTAINER_ENV_FILE}"
 }
 
 # HTTP status of a URL on this machine, or 000 when nothing answers. --noproxy: a proxy set in
@@ -581,6 +598,10 @@ start_container() {
   if [ -n "${ENGINE_SOCKET}" ]; then
     args+=(-v "${ENGINE_SOCKET}:/var/run/docker.sock" -e AI_SDLC_CONTAINER_ID="${CONTAINER}")
   fi
+  # Settings chosen in the launcher; values come from this process's environment.
+  load_container_env
+  local key
+  for key in ${CONTAINER_ENV_KEYS[@]+"${CONTAINER_ENV_KEYS[@]}"}; do args+=(-e "${key}"); done
   if [ "${#EXTRA_ARGS[@]}" -gt 0 ]; then args+=("${EXTRA_ARGS[@]}"); fi
   if [ "${FLUXLINE_DEBUG:-}" = 1 ]; then
     # Secrets are passed as bare `-e NAME`, so this prints no values.

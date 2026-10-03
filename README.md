@@ -47,7 +47,7 @@ Clean start. It also:
 - restarts a Podman machine that says it's running but doesn't answer;
 - names any container already using Fluxline's ports, and can stop it for you (**Force stop and
   retry**);
-- on networks that inspect HTTPS (company proxies), shows the certificate authority the network
+- on private networks and behind proxies that inspect HTTPS, shows the certificate authority the network
   presents and asks before trusting it (see [Behind a proxy](#behind-a-proxy)).
 
 The app and the script share the same settings, container and data, so you can switch between them.
@@ -183,6 +183,30 @@ Set any of these before running the script, for example
 | `FLUXLINE_VSCODE=0` | on | Don't install the VS Code bridge extension. |
 | `FLUXLINE_NAME` | `fluxline` | Name of the container and prefix of its volumes, to run a second, separate copy. |
 
+### Agent and UI settings
+
+The app's **Advanced options → Fluxline settings…** (or **Settings…** on its dashboard) changes
+the agent's and the UI's own settings; each shows its default. They're saved in
+`~/.fluxline/container.env`, which the script uses too, and apply when Fluxline next starts
+(**Save and apply** restarts it with your data kept). From a terminal: `Fluxline settings` lists
+them, `--set KEY=value` changes one, `--unset KEY` returns it to the default.
+
+| Setting | Default | What it's for |
+| --- | --- | --- |
+| `FLUXLINE_DB_POOL_MAX` | `64` | Database connections the UI and the agent each keep open (2–120). Postgres's own limit grows to fit. |
+| `FLUXLINE_PG_MAX_CONNECTIONS` | automatic | Postgres `max_connections`; automatic is both pools + the checkpoint pool + 20. |
+| `DB_POOL_IDLE_TIMEOUT_MS`, `DB_POOL_MAX_USES` | 30000, no limit | The UI's pool: idle timeout, queries per connection. |
+| `AI_SDLC_DB_POOL_MIN`, `AI_SDLC_DB_POOL_IDLE_TIMEOUT_MS` | 2, 300000 | The agent's pool. |
+| `AI_SDLC_DB_CHECKPOINT_POOL_MIN` / `_MAX` | 1 / 10 | The agent's pipeline-state pool. |
+| `AI_SDLC_GIT_USER_NAME`, `AI_SDLC_GIT_USER_EMAIL` | from your Git settings | Commit author in task working copies. |
+| `AI_SDLC_DEPENDENCY_POLLER_ENABLED`, `_INTERVAL_SECONDS` | on, 60 | Dependency (vulnerability) checks. |
+| `AI_SDLC_SVN_ENABLED` | off | Workspaces with Subversion repositories. |
+| `AI_SDLC_ARTIFACTORY_URL`, `AI_SDLC_ARTIFACTORY_TOKEN` | none | Package mirror for dependency upgrades. |
+| `LOCAL_DEV` | on | Turn off when Fluxline is served over HTTPS (secure sign-in cookie). |
+
+Other `KEY=value` settings the agent or the UI read can be added too. Settings Fluxline manages
+itself (database address, ports, tokens, paths, proxies, certificates) are refused.
+
 ## Behind a proxy
 
 Fluxline works behind an HTTP proxy. Connections between Fluxline and VS Code on your machine never
@@ -200,13 +224,13 @@ Image downloads use the engine's own proxy settings (Docker Desktop, or the Podm
 **`x509: certificate signed by unknown authority` while downloading.** Your network re-signs HTTPS
 with its own certificate authority, which your computer trusts but the Podman machine and the
 Fluxline container don't. The app shows that authority (name, validity, SHA-256 fingerprint) and
-asks whether to trust it; check the fingerprint with your IT team if unsure. Once trusted, it's
+asks whether to trust it; check the fingerprint with your network administrator if unsure. Once trusted, it's
 added to the Podman machine, used for the download, and given to Fluxline so the coding agents,
 Git and Jira work through the same network. It's kept in `~/.fluxline/certs` (Advanced options →
 **Trusted certificates** lists and removes them); your computer's own trust settings aren't
 changed.
 
-- Already have the authority's file from IT? `--trust-ca company-ca.pem`, or **Add from file…**
+- Already have the authority's file? `--trust-ca network-ca.pem`, or **Add from file…**
   under Trusted certificates.
 - Docker Desktop takes extra authorities from your computer's trust: the app tells you the command
   (macOS keychain or Windows certificate store), then restart Docker Desktop.
