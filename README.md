@@ -46,7 +46,9 @@ Clean start. It also:
 - removes invisible characters from pasted keys and folders;
 - restarts a Podman machine that says it's running but doesn't answer;
 - names any container already using Fluxline's ports, and can stop it for you (**Force stop and
-  retry**).
+  retry**);
+- on networks that inspect HTTPS (company proxies), shows the certificate authority the network
+  presents and asks before trusting it (see [Behind a proxy](#behind-a-proxy)).
 
 The app and the script share the same settings, container and data, so you can switch between them.
 
@@ -195,6 +197,22 @@ go through it.
 
 Image downloads use the engine's own proxy settings (Docker Desktop, or the Podman machine).
 
+**`x509: certificate signed by unknown authority` while downloading.** Your network re-signs HTTPS
+with its own certificate authority, which your computer trusts but the Podman machine and the
+Fluxline container don't. The app shows that authority (name, validity, SHA-256 fingerprint) and
+asks whether to trust it; check the fingerprint with your IT team if unsure. Once trusted, it's
+added to the Podman machine, used for the download, and given to Fluxline so the coding agents,
+Git and Jira work through the same network. It's kept in `~/.fluxline/certs` (Advanced options →
+**Trusted certificates** lists and removes them); your computer's own trust settings aren't
+changed.
+
+- Already have the authority's file from IT? `--trust-ca company-ca.pem`, or **Add from file…**
+  under Trusted certificates.
+- Docker Desktop takes extra authorities from your computer's trust: the app tells you the command
+  (macOS keychain or Windows certificate store), then restart Docker Desktop.
+- Last resort, Podman only: **Skip certificate checks for the image download** (`--insecure-pull`)
+  downloads without checking, for that run only.
+
 If image pulls are blocked, pull from a mirror instead:
 
 ```bash
@@ -248,6 +266,7 @@ Starting the script with `sh setup-podman.sh` works too; it runs itself under ba
 | `fluxline-data already has an account, and its password isn't in …` | `~/.fluxline/setup.env` was removed. Sign in with the password you chose, or start fresh with `podman volume rm fluxline-data fluxline-postgres`. |
 | A port is already in use | The app names the container using it: **Force stop and retry** stops it (it isn't deleted). Or choose other ports: Advanced options in the app, or `UI_PORT=3100 AGENT_PORT=3500 ./setup-podman.sh`. |
 | `Cannot connect to Podman … connection refused` while `podman machine list` says running | The Podman machine's port forwarder has stopped. The app offers to restart the machine; otherwise run `podman machine stop`, then `podman machine start`, and start Fluxline again. Containers in the machine stop with it; start any others again with `podman start <name>`. |
+| `x509: certificate signed by unknown authority` while pulling | Your network inspects HTTPS. Use the app: it shows the certificate authority and asks before trusting it (or `--trust-ca <file>`). See [Behind a proxy](#behind-a-proxy). |
 | macOS says the app "can't be opened" | It isn't signed yet: right-click → **Open**, or `xattr -dr com.apple.quarantine Fluxline.app`. |
 | The `fluxline` container keeps restarting | `podman logs --tail 80 fluxline` (or `docker logs`): the last `[entrypoint]` line names the service that stopped and its exit code. Re-run the script to get the latest image. |
 
