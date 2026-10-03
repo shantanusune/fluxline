@@ -284,7 +284,7 @@ Starting the script with `sh setup-podman.sh` works too; it runs itself under ba
 | Host | In the container | Why |
 | --- | --- | --- |
 | Your code folder | same path | The repositories it works on; paths in the UI and logs match your machine. |
-| `~/fluxline-repos` | `/repos` | Where **Check out repositories** clones land. |
+| `~/fluxline-repos` | same path (and `/repos`) | Where **Check out repositories** clones land with **Persist on host**; at the same path, VS Code on your machine can work on them too. |
 | `~/.ai-sdlc` | `/root/.ai-sdlc` | How the agent finds the VS Code bridge. |
 | `~/.fluxline/runs` | same path | Each task's working copy, where VS Code can edit it. |
 | `~/.gitconfig`, `~/.ssh` | read-only | Your commit identity and SSH keys, if present. |

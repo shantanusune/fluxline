@@ -221,6 +221,13 @@ toolchain_volumes() {
   rt volume ls -q --filter "name=fluxline-tools-$(instance_label "${CONTAINER}")-" 2>/dev/null || true
 }
 
+# repos_mount_args <host folder> — checked-out repositories: at the same path inside and out, so
+# VS Code on this machine can open them (the agent is told the host path); /repos stays for
+# workspaces cloned there before.
+repos_mount_args() {
+  printf '%s\n' -v "$1:/repos" -v "$1:$1" -e "AI_SDLC_REPOS_ROOT=$1" -e "AI_SDLC_REPOS_HOST_ROOT=$1"
+}
+
 # HTTP status of a URL on this machine, or 000 when nothing answers. --noproxy: a proxy set in
 # the terminal can't reach this machine's 127.0.0.1, and curl would otherwise send it there.
 http_code() { curl -s --noproxy '*' -o /dev/null -w '%{http_code}' --max-time 5 "$1" 2>/dev/null || true; }
@@ -618,7 +625,7 @@ start_container() {
     args+=(-v "${WORKSPACE}:${WORKSPACE}" -e AI_SDLC_WORKSPACE_ROOT="${WORKSPACE}")
   fi
   mkdir -p "${HOME}/fluxline-repos"
-  args+=(-v "${HOME}/fluxline-repos:/repos")
+  while IFS= read -r arg; do args+=("${arg}"); done < <(repos_mount_args "${HOME}/fluxline-repos")
   # Task working copies live here, at the same path inside and out, so VS Code (the bridge runs
   # on this machine) can edit them; under the data volume it would see paths that don't exist.
   mkdir -p "${STATE_DIR}/runs"
